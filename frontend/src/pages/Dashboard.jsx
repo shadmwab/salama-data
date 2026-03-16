@@ -20,16 +20,18 @@ function StatCard({ num, label, color, bg, icon }) {
   )
 }
 
-export default function Dashboard() {
+export default function Dashboard({ token }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const { t } = useLang()
 
-  useEffect(() => {
-    axios.get(`${API}/dashboard`)
-      .then(r => { setData(r.data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+ useEffect(() => {
+  axios.get(`${API}/dashboard`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+    .then(r => { setData(r.data); setLoading(false) })
+    .catch(() => setLoading(false))
+}, [token])
 
   return (
     <div>

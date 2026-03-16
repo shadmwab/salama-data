@@ -4,13 +4,15 @@ import { useLang } from '../LanguageContext'
 
 const API = 'http://127.0.0.1:8000'
 
-export default function Beneficiaires() {
+export default function Beneficiaires({ token }) {
   const [list, setList] = useState([])
   const { t } = useLang()
 
   useEffect(() => {
-    axios.get(`${API}/beneficiaires`).then(r => setList(r.data)).catch(() => {})
-  }, [])
+  axios.get(`${API}/beneficiaires`, {
+    headers: { Authorization: `Bearer ${token}` }
+  }).then(r => setList(r.data)).catch(() => {})
+}, [token])
 
   return (
     <div>

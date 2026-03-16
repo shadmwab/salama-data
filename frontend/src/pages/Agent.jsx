@@ -4,7 +4,7 @@ import { useLang } from '../LanguageContext'
 
 const API = 'http://127.0.0.1:8000'
 
-export default function Agent() {
+export default function Agent({ token }) {
   const { t } = useLang()
   const [messages, setMessages] = useState([
     { role: 'agent', text: t('agent_welcome') }
@@ -23,7 +23,9 @@ export default function Agent() {
     setInput('')
     setLoading(true)
     try {
-      const r = await axios.post(`${API}/agent`, { question: q })
+      const r = await axios.post(`${API}/agent`, { question: q }, {
+  headers: { Authorization: `Bearer ${token}` }
+})
       setMessages(m => [...m, { role: 'agent', text: r.data.reponse }])
     } catch {
       setMessages(m => [...m, { role: 'agent', text: t('agent_error') }])

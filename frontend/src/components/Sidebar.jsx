@@ -1,16 +1,26 @@
 import { LogoHorizontal } from './Logo'
 import { useLang } from '../LanguageContext'
 
-const getLinks = (t) => [
-  { id: 'dashboard', icon: '▦', label: t('nav_dashboard') },
-  { id: 'collecte', icon: '✎', label: t('nav_collecte') },
-  { id: 'beneficiaires', icon: '◉', label: t('nav_beneficiaires') },
-  { id: 'agent', icon: '✦', label: t('nav_agent') },
-]
+const getLinks = (t, role) => {
+  const all = [
+    { id: 'dashboard', icon: '▦', label: t('nav_dashboard'), roles: ['admin', 'manager', 'agent'] },
+    { id: 'collecte', icon: '✎', label: t('nav_collecte'), roles: ['admin', 'manager', 'agent'] },
+    { id: 'beneficiaires', icon: '◉', label: t('nav_beneficiaires'), roles: ['admin', 'manager'] },
+    { id: 'agent', icon: '✦', label: t('nav_agent'), roles: ['admin', 'manager'] },
+  ]
+  return all.filter(l => l.roles.includes(role))
+}
 
-export default function Sidebar({ currentPage, onNavigate, isOnline }) {
+const roleColors = {
+  admin: { bg: '#FCEBEB', color: '#A32D2D', label: 'Admin' },
+  manager: { bg: '#E6F4FB', color: '#185FA5', label: 'Manager' },
+  agent: { bg: '#E1F5EE', color: '#085041', label: 'Agent' },
+}
+
+export default function Sidebar({ currentPage, onNavigate, isOnline, user, onLogout }) {
   const { lang, setLang, t } = useLang()
-  const links = getLinks(t)
+  const links = getLinks(t, user?.role || 'agent')
+  const roleStyle = roleColors[user?.role] || roleColors.agent
 
   return (
     <aside style={{
@@ -20,6 +30,7 @@ export default function Sidebar({ currentPage, onNavigate, isOnline }) {
       fontFamily: "'Poppins', sans-serif"
     }}>
 
+      {/* Header */}
       <div style={{ background: '#0D2E4E', padding: '1.25rem 1.5rem' }}>
         <LogoHorizontal online={isOnline} dark={true} />
         <div style={{
@@ -31,7 +42,35 @@ export default function Sidebar({ currentPage, onNavigate, isOnline }) {
         </div>
       </div>
 
-      <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      {/* Profil utilisateur */}
+      {user && (
+        <div style={{
+          padding: '12px 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', gap: '10px'
+        }}>
+          <div style={{
+            width: '36px', height: '36px', borderRadius: '50%',
+            background: 'rgba(255,255,255,0.15)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: '14px', fontWeight: '700', color: 'white', flexShrink: 0
+          }}>
+            {user.prenom?.[0]}{user.nom?.[0]}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ color: 'white', fontSize: '13px', fontWeight: '600', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {user.prenom} {user.nom}
+            </p>
+            <span style={{
+              background: roleStyle.bg, color: roleStyle.color,
+              fontSize: '10px', padding: '2px 8px', borderRadius: '4px',
+              fontWeight: '700', display: 'inline-block', marginTop: '2px'
+            }}>{roleStyle.label}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div style={{ padding: '8px 0', flex: 1 }}>
         <p style={{
           color: '#7FB3D3', fontSize: '10px', fontWeight: '700',
           letterSpacing: '0.1em', padding: '8px 1.5rem 4px',
@@ -55,11 +94,8 @@ export default function Sidebar({ currentPage, onNavigate, isOnline }) {
         ))}
       </div>
 
-      <div style={{ flex: 1 }} />
-
+      {/* Footer */}
       <div style={{ padding: '1rem 1.5rem', background: 'rgba(0,0,0,0.2)' }}>
-
-        {/* Sélecteur de langue */}
         <p style={{ color: '#7FB3D3', fontSize: '10px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '8px' }}>Langue</p>
         <div style={{ display: 'flex', gap: '4px', marginBottom: '12px', flexWrap: 'wrap' }}>
           {[
@@ -79,21 +115,25 @@ export default function Sidebar({ currentPage, onNavigate, isOnline }) {
         </div>
 
         <p style={{ color: '#5A8AA8', fontSize: '11px' }}>Salama Data MVP v1.0</p>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px',
-          padding: '6px 10px', borderRadius: '6px',
-          background: isOnline ? 'rgba(29,158,117,0.15)' : 'rgba(186,117,23,0.15)'
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
           <div style={{
-            width: '7px', height: '7px', borderRadius: '50%',
-            background: isOnline ? '#1D9E75' : '#BA7517'
-          }} />
-          <p style={{
-            fontSize: '11px', fontWeight: '600', margin: 0,
-            color: isOnline ? '#9FE1CB' : '#FFD49A'
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '6px 10px', borderRadius: '6px',
+            background: isOnline ? 'rgba(29,158,117,0.15)' : 'rgba(186,117,23,0.15)'
           }}>
-            {isOnline ? `🌐 ${t('status_online')}` : `📴 ${t('status_offline')}`}
-          </p>
+            <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#1D9E75' : '#BA7517' }} />
+            <p style={{ fontSize: '11px', fontWeight: '600', margin: 0, color: isOnline ? '#9FE1CB' : '#FFD49A' }}>
+              {isOnline ? `🌐 ${t('status_online')}` : `📴 ${t('status_offline')}`}
+            </p>
+          </div>
+          <button onClick={onLogout} style={{
+            background: 'rgba(255,255,255,0.08)', color: '#A8C8E0',
+            border: 'none', borderRadius: '6px', padding: '6px 10px',
+            fontSize: '11px', cursor: 'pointer', fontFamily: "'Poppins', sans-serif",
+            fontWeight: '600'
+          }}>
+            ⏏ Sortir
+          </button>
         </div>
       </div>
     </aside>

@@ -5,7 +5,7 @@ import { useLang } from '../LanguageContext'
 
 const API = 'http://127.0.0.1:8000'
 
-export default function Collecte() {
+export default function Collecte({ token, user }) {
   const { t } = useLang()
   const [nom, setNom] = useState('')
   const [prenom, setPrenom] = useState('')
@@ -33,7 +33,9 @@ export default function Collecte() {
     }
 
     try {
-      await axios.post(`${API}/beneficiaires`, data)
+      await axios.post(`${API}/beneficiaires`, data, {
+  headers: { Authorization: `Bearer ${token}` }
+})
       setStatus({ type: 'success', msg: `✓ ${prenom} ${nom} ${t('collecte_success')}` })
     } catch {
       await savePending(data)
