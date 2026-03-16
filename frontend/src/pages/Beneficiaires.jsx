@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { useLang } from '../LanguageContext'
 
 const API = 'http://127.0.0.1:8000'
 
 export default function Beneficiaires() {
   const [list, setList] = useState([])
+  const { t } = useLang()
 
   useEffect(() => {
     axios.get(`${API}/beneficiaires`).then(r => setList(r.data)).catch(() => {})
@@ -14,16 +16,17 @@ export default function Beneficiaires() {
     <div>
       <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '600' }}>Bénéficiaires</h1>
-          <p style={{ color: 'var(--gray)', marginTop: '4px' }}>{list.length} enregistrés</p>
+          <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>LISTE</p>
+          <h1 style={{ fontSize: '26px', fontWeight: '700', color: '#0D2E4E' }}>{t('benef_title')}</h1>
+          <p style={{ color: 'var(--gray)', marginTop: '4px', fontSize: '14px' }}>{list.length} {t('benef_count')}</p>
         </div>
       </div>
 
-      <div style={{ background: 'white', borderRadius: '10px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+      <div style={{ background: 'white', borderRadius: '10px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#F8FAFC' }}>
-              {['ID', 'Nom complet', 'Âge', 'Sexe', 'Zone origine', 'Site déplacement', 'Dépendants'].map(h => (
+              {[t('benef_id'), t('benef_nom'), t('benef_age'), t('benef_sexe'), t('benef_zone'), t('benef_site'), t('benef_dep')].map(h => (
                 <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>{h}</th>
               ))}
             </tr>
@@ -43,7 +46,7 @@ export default function Beneficiaires() {
               </tr>
             ))}
             {list.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--gray)', fontSize: '14px' }}>Aucun bénéficiaire enregistré pour le moment.</td></tr>
+              <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--gray)', fontSize: '14px' }}>{t('benef_empty')}</td></tr>
             )}
           </tbody>
         </table>
