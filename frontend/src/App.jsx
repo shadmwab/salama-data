@@ -7,8 +7,11 @@ import Agent from './pages/Agent'
 import Login from './pages/Login'
 import { syncPending } from './offline'
 import './index.css'
+import JoinRequest from './pages/JoinRequest'
 
 const API = 'http://127.0.0.1:8000'
+
+
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath()
@@ -96,10 +99,15 @@ export default function App() {
     setUser(null)
     setToken(null)
   }
+const [showJoinRequest, setShowJoinRequest] = useState(false)
 
-  if (!user || !token) {
-    return <Login onLogin={handleLogin} />
-  }
+ if (showJoinRequest) {
+  return <JoinRequest onBack={() => setShowJoinRequest(false)} />
+}
+
+if (!user || !token) {
+  return <Login onLogin={handleLogin} onJoinRequest={() => setShowJoinRequest(true)} />
+}
 
   const renderPage = () => {
     switch(page) {

@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import axios from 'axios'
 import { useLang } from '../LanguageContext'
-import { LogoHorizontal } from '../components/Logo'
 
 const API = 'http://127.0.0.1:8000'
 
-export default function Login({ onLogin }) {
-  const { t, lang, setLang } = useLang()
+export default function Login({ onLogin, onJoinRequest }) {
+  const { lang, setLang } = useLang()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -141,8 +140,25 @@ export default function Login({ onLogin }) {
             cursor: loading ? 'not-allowed' : 'pointer',
             fontFamily: "'Poppins', sans-serif"
           }}>
-            {loading ? '⏳ Connexion...' : '→ Se connecter'}
+            {loading ? 'Connexion...' : '→ Se connecter'}
           </button>
+
+          {/* Lien rejoindre */}
+          <div style={{
+            textAlign: 'center', marginTop: '1rem',
+            paddingTop: '1rem', borderTop: '1px solid #DDE3EC'
+          }}>
+            <p style={{ fontSize: '13px', color: '#64748B' }}>
+              Votre organisation n'a pas encore accès ?{' '}
+              <button onClick={onJoinRequest} style={{
+                background: 'none', border: 'none', color: '#1A4B7A',
+                fontWeight: '700', cursor: 'pointer', fontSize: '13px',
+                fontFamily: "'Poppins', sans-serif", textDecoration: 'underline'
+              }}>
+                Faire une demande d'accès
+              </button>
+            </p>
+          </div>
         </div>
 
         {/* Langue selector */}

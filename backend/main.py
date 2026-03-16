@@ -2,10 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta
+import secrets
+import string
 import models
 from models import get_db, AuditLog, User
 from agent import interroger_agent
@@ -13,6 +14,7 @@ from auth import (
     hash_password, verify_password, create_token,
     get_current_user, require_role, ACCESS_TOKEN_EXPIRE_MINUTES
 )
+from email_service import send_welcome_agent, send_org_request_notification, send_org_approved
 
 models.init_db()
 
@@ -25,8 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def log_action(db: Session, action: str, details: str = None,
-               user=None, request: Request = None):
+def generate_password(length=12):
+    chars = string.ascii_letters + string.digits + "!@#$"
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
+def log_action(db: Session, action: str, details: str = None, user=None, request: Request = None):
     entry = AuditLog(
         user_id=user.id if user else None,
         user_email=user.email if user else None,
@@ -43,13 +48,10 @@ def create_default_admin(db: Session):
     existing = db.query(User).filter(User.email == "admin@salama-data.org").first()
     if not existing:
         admin = User(
-            nom="Admin",
-            prenom="Salama",
+            nom="Admin", prenom="Salama",
             email="admin@salama-data.org",
             hashed_password=hash_password("Salama2026!"),
-            role="admin",
-            organisation_id=1,
-            is_active=True
+            role="admin", organisation_id=1, is_active=True
         )
         db.add(admin)
         db.commit()
@@ -57,7 +59,7 @@ def create_default_admin(db: Session):
 db_init = next(get_db())
 create_default_admin(db_init)
 
-# ── Schemas ──────────────────────────────────────────────────────────────────
+# ── Schemas ───────────────────────────────────────────────────────────────────
 class BeneficiaireCreate(BaseModel):
     nom: str
     prenom: str
@@ -86,7 +88,19 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
 
-# ── Auth Routes ───────────────────────────────────────────────────────────────
+class OrgRequestCreate(BaseModel):
+    org_name: str
+    contact_name: str
+    email: str
+    phone: Optional[str] = None
+    type_org: str = "ONG"
+    message: Optional[str] = None
+
+# ── Auth Routes ────────────────────────────────────────────────────────────────
+@app.get("/")
+def root():
+    return {"message": "Salama Data API v2.0", "status": "online"}
+
 @app.post("/auth/login")
 def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
@@ -104,7 +118,7 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
         timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    log_action(db, "LOGIN_SUCCESS", f"Connexion réussie", user=user, request=request)
+    log_action(db, "LOGIN_SUCCESS", "Connexion réussie", user=user, request=request)
 
     return {
         "access_token": token,
@@ -129,24 +143,39 @@ def get_me(current_user: User = Depends(get_current_user)):
         "derniere_connexion": current_user.derniere_connexion
     }
 
-# ── User Management (Admin only) ──────────────────────────────────────────────
+# ── Public Routes ──────────────────────────────────────────────────────────────
+@app.post("/public/org-request")
+def submit_org_request(data: OrgRequestCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.OrgRequest).filter(
+        models.OrgRequest.email == data.email,
+        models.OrgRequest.status == "pending"
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Une demande est déjà en cours pour cet email")
+
+    req = models.OrgRequest(**data.model_dump())
+    db.add(req)
+    db.commit()
+
+    send_org_request_notification(
+        org_name=data.org_name,
+        contact_name=data.contact_name,
+        email=data.email,
+        phone=data.phone or "Non fourni",
+        message=data.message or "Aucun message"
+    )
+    return {"message": "Demande envoyée avec succès. Vous recevrez une réponse sous 48h."}
+
+# ── User Management ────────────────────────────────────────────────────────────
 @app.get("/users")
-def list_users(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin"))
-):
+def list_users(db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     users = db.query(User).filter(User.organisation_id == current_user.organisation_id).all()
     return [{"id": u.id, "nom": u.nom, "prenom": u.prenom, "email": u.email,
              "role": u.role, "is_active": u.is_active,
              "derniere_connexion": u.derniere_connexion} for u in users]
 
 @app.post("/users")
-def create_user(
-    data: UserCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin"))
-):
+def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
@@ -161,17 +190,22 @@ def create_user(
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    org = db.query(models.Organisation).filter(
+        models.Organisation.id == current_user.organisation_id
+    ).first()
+    org_name = org.nom if org else "Salama Data"
+
+    send_welcome_agent(
+        to_email=data.email, prenom=data.prenom, nom=data.nom,
+        role=data.role, password=data.password, org_name=org_name
+    )
+
     log_action(db, "USER_CREATED", f"Nouvel utilisateur: {data.email} ({data.role})", user=current_user, request=request)
-    return {"id": user.id, "message": f"Utilisateur {user.prenom} {user.nom} créé avec succès"}
+    return {"id": user.id, "message": f"Utilisateur {data.prenom} {data.nom} créé et email envoyé"}
 
 @app.put("/users/{user_id}")
-def update_user(
-    user_id: int,
-    data: UserUpdate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin"))
-):
+def update_user(user_id: int, data: UserUpdate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
@@ -184,12 +218,7 @@ def update_user(
     return {"message": "Utilisateur mis à jour"}
 
 @app.delete("/users/{user_id}")
-def delete_user(
-    user_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin"))
-):
+def delete_user(user_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
@@ -200,65 +229,82 @@ def delete_user(
     log_action(db, "USER_DELETED", f"Utilisateur {user.email} supprimé", user=current_user, request=request)
     return {"message": "Utilisateur supprimé"}
 
-# ── Audit Log (Admin + Manager) ────────────────────────────────────────────────
+# ── Org Requests ───────────────────────────────────────────────────────────────
+@app.get("/org-requests")
+def list_org_requests(db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    return db.query(models.OrgRequest).order_by(models.OrgRequest.date_demande.desc()).all()
+
+@app.post("/org-requests/{request_id}/approve")
+def approve_org_request(request_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    req = db.query(models.OrgRequest).filter(models.OrgRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    if req.status != "pending":
+        raise HTTPException(status_code=400, detail="Demande déjà traitée")
+
+    org = models.Organisation(nom=req.org_name, type_org=req.type_org, email=req.email, telephone=req.phone)
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+
+    password = generate_password()
+    admin_user = User(
+        nom=req.contact_name.split()[-1] if ' ' in req.contact_name else req.contact_name,
+        prenom=req.contact_name.split()[0],
+        email=req.email,
+        hashed_password=hash_password(password),
+        role="admin", organisation_id=org.id, is_active=True
+    )
+    db.add(admin_user)
+    req.status = "approved"
+    req.date_traitement = datetime.utcnow()
+    db.commit()
+
+    send_org_approved(to_email=req.email, org_name=req.org_name, contact_name=req.contact_name, admin_password=password)
+    log_action(db, "ORG_APPROVED", f"Organisation {req.org_name} approuvée", user=current_user, request=request)
+    return {"message": f"Organisation {req.org_name} approuvée et email envoyé"}
+
+@app.post("/org-requests/{request_id}/reject")
+def reject_org_request(request_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    req = db.query(models.OrgRequest).filter(models.OrgRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    req.status = "rejected"
+    req.date_traitement = datetime.utcnow()
+    db.commit()
+    log_action(db, "ORG_REJECTED", f"Organisation {req.org_name} rejetée", user=current_user, request=request)
+    return {"message": "Demande rejetée"}
+
+# ── Audit Log ──────────────────────────────────────────────────────────────────
 @app.get("/audit")
-def get_audit_logs(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "manager"))
-):
+def get_audit_logs(db: Session = Depends(get_db), current_user: User = Depends(require_role("admin", "manager"))):
     logs = db.query(AuditLog).filter(
         AuditLog.organisation_id == current_user.organisation_id
     ).order_by(AuditLog.timestamp.desc()).limit(100).all()
     return logs
 
-# ── Data Routes ───────────────────────────────────────────────────────────────
-@app.get("/")
-def root():
-    return {"message": "Salama Data API v2.0", "status": "online"}
-
+# ── Data Routes ────────────────────────────────────────────────────────────────
 @app.post("/beneficiaires")
-def creer_beneficiaire(
-    data: BeneficiaireCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    b = models.Beneficiaire(
-        **data.model_dump(),
-        organisation_id=current_user.organisation_id
-    )
+def creer_beneficiaire(data: BeneficiaireCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    b = models.Beneficiaire(**data.model_dump(), organisation_id=current_user.organisation_id)
     db.add(b)
     db.commit()
     db.refresh(b)
-    log_action(db, "BENEFICIAIRE_CREATED",
-               f"Bénéficiaire {data.prenom} {data.nom} enregistré",
-               user=current_user, request=request)
+    log_action(db, "BENEFICIAIRE_CREATED", f"Bénéficiaire {data.prenom} {data.nom} enregistré", user=current_user, request=request)
     return {"id": b.id, "message": "Bénéficiaire enregistré avec succès"}
 
 @app.get("/beneficiaires")
-def lister_beneficiaires(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "manager"))
-):
+def lister_beneficiaires(db: Session = Depends(get_db), current_user: User = Depends(require_role("admin", "manager"))):
     return db.query(models.Beneficiaire).filter(
         models.Beneficiaire.organisation_id == current_user.organisation_id
     ).all()
 
 @app.get("/dashboard")
-def dashboard(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+def dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     org_id = current_user.organisation_id
-    total = db.query(models.Beneficiaire).filter(
-        models.Beneficiaire.organisation_id == org_id
-    ).count()
-    zones = db.query(models.Beneficiaire.zone_origine).filter(
-        models.Beneficiaire.organisation_id == org_id
-    ).distinct().all()
-    agents = db.query(models.Beneficiaire.agent_id).filter(
-        models.Beneficiaire.organisation_id == org_id
-    ).distinct().count()
+    total = db.query(models.Beneficiaire).filter(models.Beneficiaire.organisation_id == org_id).count()
+    zones = db.query(models.Beneficiaire.zone_origine).filter(models.Beneficiaire.organisation_id == org_id).distinct().all()
+    agents = db.query(models.Beneficiaire.agent_id).filter(models.Beneficiaire.organisation_id == org_id).distinct().count()
     return {
         "total_beneficiaires": total,
         "zones": [z[0] for z in zones if z[0]],
@@ -268,28 +314,12 @@ def dashboard(
     }
 
 @app.post("/agent")
-def poser_question(
-    body: AgentQuestion,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "manager"))
-):
+def poser_question(body: AgentQuestion, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin", "manager"))):
     org_id = current_user.organisation_id
-    total = db.query(models.Beneficiaire).filter(
-        models.Beneficiaire.organisation_id == org_id
-    ).count()
-    zones = db.query(models.Beneficiaire.zone_origine).filter(
-        models.Beneficiaire.organisation_id == org_id
-    ).distinct().all()
-    agents = db.query(models.Beneficiaire.agent_id).filter(
-        models.Beneficiaire.organisation_id == org_id
-    ).distinct().count()
-    contexte = {
-        "total_beneficiaires": total,
-        "zones": [z[0] for z in zones if z[0]],
-        "nb_agents": agents,
-        "collectes_mois": 0,
-    }
+    total = db.query(models.Beneficiaire).filter(models.Beneficiaire.organisation_id == org_id).count()
+    zones = db.query(models.Beneficiaire.zone_origine).filter(models.Beneficiaire.organisation_id == org_id).distinct().all()
+    agents = db.query(models.Beneficiaire.agent_id).filter(models.Beneficiaire.organisation_id == org_id).distinct().count()
+    contexte = {"total_beneficiaires": total, "zones": [z[0] for z in zones if z[0]], "nb_agents": agents, "collectes_mois": 0}
     reponse = interroger_agent(body.question, contexte)
     log_action(db, "AGENT_QUERY", f"Question: {body.question[:100]}", user=current_user, request=request)
     return {"reponse": reponse}

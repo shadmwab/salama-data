@@ -64,6 +64,31 @@ class AuditLog(Base):
     organisation_id = Column(Integer, default=1)
     timestamp       = Column(DateTime, default=datetime.utcnow)
 
+class Organisation(Base):
+    __tablename__ = "organisations"
+    id           = Column(Integer, primary_key=True, index=True)
+    nom          = Column(String, nullable=False)
+    type_org     = Column(String, default="ONG")
+    email        = Column(String, nullable=False)
+    telephone    = Column(String, nullable=True)
+    ville        = Column(String, default="Goma")
+    pays         = Column(String, default="RDC")
+    is_active    = Column(Boolean, default=True)
+    date_creation = Column(DateTime, default=datetime.utcnow)
+
+class OrgRequest(Base):
+    __tablename__ = "org_requests"
+    id            = Column(Integer, primary_key=True, index=True)
+    org_name      = Column(String, nullable=False)
+    contact_name  = Column(String, nullable=False)
+    email         = Column(String, nullable=False)
+    phone         = Column(String, nullable=True)
+    type_org      = Column(String, default="ONG")
+    message       = Column(Text, nullable=True)
+    status        = Column(String, default="pending")
+    date_demande  = Column(DateTime, default=datetime.utcnow)
+    date_traitement = Column(DateTime, nullable=True)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
