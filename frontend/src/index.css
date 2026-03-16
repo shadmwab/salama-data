@@ -1,0 +1,58 @@
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-Regular.ttf') format('truetype');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-Medium.ttf') format('truetype');
+  font-weight: 500;
+}
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+}
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-Bold.ttf') format('truetype');
+  font-weight: 700;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #EEF2F7;
+  color: #1a1a2e;
+  font-size: 15px;
+}
+
+input, select, textarea, button {
+  font-family: 'Poppins', sans-serif;
+}
+
+:root {
+  --green: #1D9E75;
+  --green-dark: #085041;
+  --green-light: #E1F5EE;
+  --blue: #009EDB;
+  --blue-dark: #1A4B7A;
+  --blue-light: #E6F4FB;
+  --red: #C5192D;
+  --red-light: #FDECEA;
+  --amber: #FF6B00;
+  --amber-light: #FFF3E8;
+  --gray: #6B7280;
+  --gray-light: #F9FAFB;
+  --white: #FFFFFF;
+  --border: #DDE3EC;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-hover: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+input, select, textarea {
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+button { font-family: 'Segoe UI', Arial, sans-serif; }
