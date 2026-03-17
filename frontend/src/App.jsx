@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react'
+import axios from 'axios'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Collecte from './pages/Collecte'
 import Beneficiaires from './pages/Beneficiaires'
 import Agent from './pages/Agent'
 import Login from './pages/Login'
+import JoinRequest from './pages/JoinRequest'
 import { syncPending } from './offline'
 import './index.css'
-import JoinRequest from './pages/JoinRequest'
 
-const API = 'http://127.0.0.1:8000'
-
-
+const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath()
@@ -31,12 +30,35 @@ export default function App() {
   const [page, setPage] = useState('dashboard')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [syncMsg, setSyncMsg] = useState(null)
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('salama_user')
-    return saved ? JSON.parse(saved) : null
-  })
-  const [token, setToken] = useState(() => localStorage.getItem('salama_token'))
+  const [user, setUser] = useState(null)
+  const [token, setToken] = useState(null)
+  const [checking, setChecking] = useState(true)
+  const [showJoinRequest, setShowJoinRequest] = useState(false)
 
+  // Vérification de session au démarrage
+  useEffect(() => {
+    const savedToken = localStorage.getItem('salama_token')
+    const savedUser = localStorage.getItem('salama_user')
+
+    if (savedToken && savedUser) {
+      axios.get(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${savedToken}` }
+      })
+        .then(() => {
+          setToken(savedToken)
+          setUser(JSON.parse(savedUser))
+        })
+        .catch(() => {
+          localStorage.removeItem('salama_token')
+          localStorage.removeItem('salama_user')
+        })
+        .finally(() => setChecking(false))
+    } else {
+      setChecking(false)
+    }
+  }, [])
+
+  // Gestion connexion online/offline
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true)
@@ -58,6 +80,7 @@ export default function App() {
     }
   }, [])
 
+  // Favicon dynamique
   useEffect(() => {
     const canvas = document.createElement('canvas')
     canvas.width = 32; canvas.height = 32
@@ -99,15 +122,6 @@ export default function App() {
     setUser(null)
     setToken(null)
   }
-const [showJoinRequest, setShowJoinRequest] = useState(false)
-
- if (showJoinRequest) {
-  return <JoinRequest onBack={() => setShowJoinRequest(false)} />
-}
-
-if (!user || !token) {
-  return <Login onLogin={handleLogin} onJoinRequest={() => setShowJoinRequest(true)} />
-}
 
   const renderPage = () => {
     switch(page) {
@@ -119,6 +133,48 @@ if (!user || !token) {
     }
   }
 
+  // Écran de chargement pendant la vérification
+  if (checking) {
+    return (
+      <div style={{
+        minHeight: '100vh', background: '#EEF2F7',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'Poppins', sans-serif"
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <svg width="56" height="56" viewBox="0 0 48 48" style={{ marginBottom: '1rem' }}>
+            <rect width="48" height="48" rx="10" fill="#1A4B7A"/>
+            <circle cx="24" cy="20" r="8" fill="none" stroke="#009EDB" strokeWidth="1.5"/>
+            <circle cx="24" cy="20" r="3" fill="#1D9E75"/>
+            <path d="M24 28 L24 34" stroke="#9FE1CB" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+            <path d="M19 32 L24 34 L29 32" stroke="#9FE1CB" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="14" cy="32" r="2.5" fill="#009EDB" opacity="0.8"/>
+            <circle cx="34" cy="32" r="2.5" fill="#009EDB" opacity="0.8"/>
+            <circle cx="36" cy="14" r="5" fill="#085041" stroke="#9FE1CB" strokeWidth="1"/>
+            <path d="M33 14 L35 16 L39 12" stroke="#9FE1CB" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <p style={{ color: '#1A4B7A', fontSize: '15px', fontWeight: '600', margin: 0 }}>
+            SALAMA DATA
+          </p>
+          <p style={{ color: '#64748B', fontSize: '13px', marginTop: '6px' }}>
+            Vérification de la session...
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Page demande organisation
+  if (showJoinRequest) {
+    return <JoinRequest onBack={() => setShowJoinRequest(false)} />
+  }
+
+  // Page login
+  if (!user || !token) {
+    return <Login onLogin={handleLogin} onJoinRequest={() => setShowJoinRequest(true)} />
+  }
+
+  // Application principale
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {!isOnline && (
@@ -128,7 +184,7 @@ if (!user || !token) {
           alignItems: 'center', justifyContent: 'center', gap: '10px'
         }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FFD49A' }} />
-          📴 Mode hors ligne — Les données sont sauvegardées localement
+          Mode hors ligne — Les données sont sauvegardées localement
         </div>
       )}
       {syncMsg && (

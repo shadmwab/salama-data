@@ -2,12 +2,13 @@ import { useState } from 'react'
 import axios from 'axios'
 import { useLang } from '../LanguageContext'
 
-const API = 'http://127.0.0.1:8000'
+const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
 export default function Login({ onLogin, onJoinRequest }) {
   const { lang, setLang } = useLang()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -38,16 +39,36 @@ export default function Login({ onLogin, onJoinRequest }) {
   }
 
   const inputStyle = {
-    width: '100%', padding: '12px 14px', marginTop: '6px',
+    width: '100%', padding: '12px 14px', marginTop: '0',
     border: '1.5px solid #DDE3EC', borderRadius: '8px',
     fontSize: '14px', outline: 'none', background: 'white',
-    color: '#1a1a2e', fontFamily: "'Poppins', sans-serif"
+    color: '#1a1a2e', fontFamily: "'Poppins', sans-serif",
+    boxSizing: 'border-box'
   }
 
   const labelStyle = {
     fontSize: '12px', fontWeight: '700', color: '#64748B',
-    textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block'
+    textTransform: 'uppercase', letterSpacing: '0.06em',
+    display: 'block', marginBottom: '6px'
   }
+
+  const EyeIcon = ({ open }) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {open ? (
+        <>
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </>
+      ) : (
+        <>
+          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </>
+      )}
+    </svg>
+  )
 
   return (
     <div style={{
@@ -57,7 +78,7 @@ export default function Login({ onLogin, onJoinRequest }) {
     }}>
       <div style={{ width: '100%', maxWidth: '440px' }}>
 
-        {/* Logo agrandi */}
+        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{
             display: 'inline-flex', background: '#0D2E4E',
@@ -90,57 +111,116 @@ export default function Login({ onLogin, onJoinRequest }) {
           border: '1px solid #DDE3EC', boxShadow: '0 4px 16px rgba(0,0,0,0.08)'
         }}>
           <div style={{ marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0D2E4E' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0D2E4E', margin: 0 }}>
               Connexion
             </h2>
-            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '4px' }}>
+            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '6px', marginBottom: 0 }}>
               Entrez vos identifiants pour accéder à Salama Data
             </p>
           </div>
 
+          {/* Email */}
           <div style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>Email</label>
-            <input
-              style={inputStyle}
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              placeholder="votre@email.org"
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                style={{ ...inputStyle, paddingLeft: '40px' }}
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                placeholder="votre@email.org"
+              />
+              <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+              </div>
+            </div>
           </div>
 
+          {/* Mot de passe */}
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={labelStyle}>Mot de passe</label>
-            <input
-              style={inputStyle}
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              placeholder="••••••••"
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                style={{ ...inputStyle, paddingLeft: '40px', paddingRight: '44px' }}
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                placeholder="••••••••"
+              />
+              <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+              </div>
+              <button
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute', right: '12px', top: '50%',
+                  transform: 'translateY(-50%)', background: 'none',
+                  border: 'none', cursor: 'pointer', padding: '4px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+              >
+                <EyeIcon open={showPassword} />
+              </button>
+            </div>
           </div>
 
+          {/* Erreur */}
           {error && (
             <div style={{
               padding: '10px 14px', borderRadius: '8px', marginBottom: '1rem',
               background: '#FCEBEB', color: '#A32D2D', fontSize: '13px',
-              fontWeight: '500', border: '1px solid #F7C1C1'
+              fontWeight: '500', border: '1px solid #F7C1C1',
+              display: 'flex', alignItems: 'center', gap: '8px'
             }}>
-              ✗ {error}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A32D2D" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {error}
             </div>
           )}
 
+          {/* Bouton connexion */}
           <button onClick={handleLogin} disabled={loading} style={{
             width: '100%', padding: '13px',
             background: loading ? '#64748B' : '#1A4B7A',
             color: 'white', border: 'none', borderRadius: '8px',
             fontSize: '15px', fontWeight: '700',
             cursor: loading ? 'not-allowed' : 'pointer',
-            fontFamily: "'Poppins', sans-serif"
+            fontFamily: "'Poppins', sans-serif",
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
           }}>
-            {loading ? 'Connexion...' : '→ Se connecter'}
+            {loading ? (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="2" x2="12" y2="6"/>
+                  <line x1="12" y1="18" x2="12" y2="22"/>
+                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                  <line x1="2" y1="12" x2="6" y2="12"/>
+                  <line x1="18" y1="12" x2="22" y2="12"/>
+                </svg>
+                Connexion en cours...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/>
+                  <polyline points="10 17 15 12 10 7"/>
+                  <line x1="15" y1="12" x2="3" y2="12"/>
+                </svg>
+                Se connecter
+              </>
+            )}
           </button>
 
           {/* Lien rejoindre */}
@@ -148,12 +228,13 @@ export default function Login({ onLogin, onJoinRequest }) {
             textAlign: 'center', marginTop: '1rem',
             paddingTop: '1rem', borderTop: '1px solid #DDE3EC'
           }}>
-            <p style={{ fontSize: '13px', color: '#64748B' }}>
+            <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
               Votre organisation n'a pas encore accès ?{' '}
               <button onClick={onJoinRequest} style={{
                 background: 'none', border: 'none', color: '#1A4B7A',
                 fontWeight: '700', cursor: 'pointer', fontSize: '13px',
-                fontFamily: "'Poppins', sans-serif", textDecoration: 'underline'
+                fontFamily: "'Poppins', sans-serif", textDecoration: 'underline',
+                padding: 0
               }}>
                 Faire une demande d'accès
               </button>
@@ -181,7 +262,7 @@ export default function Login({ onLogin, onJoinRequest }) {
 
         {/* Copyright */}
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <p style={{ fontSize: '12px', color: '#94A3B8' }}>
+          <p style={{ fontSize: '12px', color: '#94A3B8', margin: 0 }}>
             © 2026 Salama Data · Tous droits réservés
           </p>
           <p style={{ fontSize: '11px', color: '#B0BEC5', marginTop: '4px' }}>
