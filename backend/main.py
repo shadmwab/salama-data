@@ -438,3 +438,58 @@ def poser_question(body: AgentQuestion, request: Request, db: Session = Depends(
     reponse = interroger_agent(body.question, contexte)
     log_action(db, "AGENT_QUERY", f"Question: {body.question[:100]}", user=current_user, request=request)
     return {"reponse": reponse}
+
+@app.get("/beneficiaires/{beneficiaire_id}")
+def get_beneficiaire(
+    beneficiaire_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    b = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.id == beneficiaire_id,
+        models.Beneficiaire.organisation_id == current_user.organisation_id
+    ).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+    return b
+
+@app.put("/beneficiaires/{beneficiaire_id}/verify")
+def verify_beneficiaire(
+    beneficiaire_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    b = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.id == beneficiaire_id
+    ).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+    b.verifie = not b.verifie
+    db.commit()
+    log_action(db, "BENEFICIAIRE_VERIFIED",
+               f"Bénéficiaire {b.prenom} {b.nom} {'vérifié' if b.verifie else 'non vérifié'}",
+               user=current_user, request=request)
+    return {"verifie": b.verifie}
+
+@app.put("/beneficiaires/{beneficiaire_id}/aide")
+def update_aide(
+    beneficiaire_id: int,
+    request: Request,
+    aide_alimentaire: Optional[bool] = None,
+    aide_abri: Optional[bool] = None,
+    aide_medicale: Optional[bool] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    b = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.id == beneficiaire_id
+    ).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+    if aide_alimentaire is not None: b.aide_alimentaire = aide_alimentaire
+    if aide_abri is not None: b.aide_abri = aide_abri
+    if aide_medicale is not None: b.aide_medicale = aide_medicale
+    db.commit()
+    log_action(db, "AIDE_UPDATED", f"Aide mise à jour pour {b.prenom} {b.nom}", user=current_user, request=request)
+    return {"message": "Aide mise à jour"}

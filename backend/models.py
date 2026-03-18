@@ -40,8 +40,14 @@ class Beneficiaire(Base):
     agent_id            = Column(String)
     organisation_id     = Column(Integer, default=1)
     synced              = Column(Boolean, default=False)
+    verifie             = Column(Boolean, default=False)
+    doublon_detecte     = Column(Boolean, default=False)
+    aide_alimentaire    = Column(Boolean, default=False)
+    aide_abri           = Column(Boolean, default=False)
+    aide_medicale       = Column(Boolean, default=False)
+    notes               = Column(Text, nullable=True)
     date_enregistrement = Column(DateTime, default=datetime.utcnow)
-
+    
 class PersonnelSante(Base):
     __tablename__ = "personnel_sante"
     id              = Column(Integer, primary_key=True, index=True)
@@ -57,7 +63,7 @@ class PersonnelSante(Base):
     statut          = Column(String, default="actif")
     organisation_id = Column(Integer, default=1)
     date_ajout      = Column(DateTime, default=datetime.utcnow)
-    
+
 class Collecte(Base):
     __tablename__ = "collectes"
     id            = Column(Integer, primary_key=True, index=True)
