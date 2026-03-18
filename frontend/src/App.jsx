@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import JoinRequest from './pages/JoinRequest'
 import { syncPending } from './offline'
 import './index.css'
+import Personnel from './pages/Personnel'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -126,6 +127,7 @@ export default function App() {
   const renderPage = () => {
     switch(page) {
       case 'dashboard': return <Dashboard token={token} />
+      case 'personnel': return <Personnel token={token} />
       case 'collecte': return <Collecte token={token} user={user} />
       case 'beneficiaires': return <Beneficiaires token={token} />
       case 'agent': return <Agent token={token} />
@@ -178,26 +180,17 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {!isOnline && (
-        <div style={{
-          background: '#BA7517', color: 'white', padding: '9px 1.5rem',
-          fontSize: '13px', fontWeight: '600', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', gap: '10px'
-        }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FFD49A' }} />
-          Mode hors ligne — Les données sont sauvegardées localement
-        </div>
-      )}
-      {syncMsg && (
-        <div style={{
-          background: syncMsg.startsWith('✓') ? '#085041' : '#185FA5',
-          color: 'white', padding: '9px 1.5rem', fontSize: '13px',
-          fontWeight: '600', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', gap: '10px'
-        }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: syncMsg.startsWith('✓') ? '#9FE1CB' : '#7FB3D3' }} />
-          {syncMsg}
-        </div>
-      )}
+  <div style={{ background: '#BA7517', color: 'white', padding: '9px 1.5rem', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+    <Icon name="offline" size={14} color="white" />
+    Mode hors ligne — Les données sont sauvegardées localement
+  </div>
+)}
+    {syncMsg && (
+      <div style={{ background: syncMsg.startsWith('✓') ? '#085041' : '#185FA5', color: 'white', padding: '9px 1.5rem', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+       <Icon name="sync" size={14} color="white" />
+    {syncMsg}
+     </div>
+     )}
       <div style={{ display: 'flex', flex: 1 }}>
         <Sidebar
           currentPage={page}

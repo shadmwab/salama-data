@@ -132,6 +132,121 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
         }
     }
 
+class PersonnelCreate(BaseModel):
+    nom: str
+    prenom: str
+    specialite: str
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    zone: Optional[str] = None
+    disponibilite: bool = True
+    statut: str = "actif"
+
+class PersonnelUpdate(BaseModel):
+    disponibilite: Optional[bool] = None
+    statut: Optional[str] = None
+    zone: Optional[str] = None
+
+@app.get("/personnel")
+def lister_personnel(
+    disponible: Optional[bool] = None,
+    specialite: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == current_user.organisation_id
+    )
+    if disponible is not None:
+        query = query.filter(models.PersonnelSante.disponibilite == disponible)
+    if specialite:
+        query = query.filter(models.PersonnelSante.specialite == specialite)
+    return query.all()
+
+@app.post("/personnel")
+def ajouter_personnel(
+    data: PersonnelCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    p = models.PersonnelSante(
+        **data.model_dump(),
+        organisation_id=current_user.organisation_id
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    log_action(db, "PERSONNEL_ADDED",
+               f"Personnel {data.prenom} {data.nom} ({data.specialite}) ajouté",
+               user=current_user, request=request)
+    return {"id": p.id, "message": f"{data.prenom} {data.nom} ajouté avec succès"}
+
+@app.put("/personnel/{personnel_id}")
+def modifier_personnel(
+    personnel_id: int,
+    data: PersonnelUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    p = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.id == personnel_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Personnel non trouvé")
+    if data.disponibilite is not None: p.disponibilite = data.disponibilite
+    if data.statut: p.statut = data.statut
+    if data.zone: p.zone = data.zone
+    db.commit()
+    log_action(db, "PERSONNEL_UPDATED", f"Personnel {p.prenom} {p.nom} modifié", user=current_user, request=request)
+    return {"message": "Personnel mis à jour"}
+
+@app.delete("/personnel/{personnel_id}")
+def supprimer_personnel(
+    personnel_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    p = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.id == personnel_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Personnel non trouvé")
+    db.delete(p)
+    db.commit()
+    log_action(db, "PERSONNEL_DELETED", f"Personnel {p.prenom} {p.nom} supprimé", user=current_user, request=request)
+    return {"message": "Personnel supprimé"}
+
+@app.get("/personnel/stats")
+def stats_personnel(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = current_user.organisation_id
+    total = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).count()
+    disponibles = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id,
+        models.PersonnelSante.disponibilite == True
+    ).count()
+    specialites = db.query(
+        models.PersonnelSante.specialite,
+        func.count(models.PersonnelSante.id)
+    ).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).group_by(models.PersonnelSante.specialite).all()
+    return {
+        "total": total,
+        "disponibles": disponibles,
+        "indisponibles": total - disponibles,
+        "par_specialite": {s: c for s, c in specialites}
+    }
+
 @app.get("/auth/me")
 def get_me(current_user: User = Depends(get_current_user)):
     return {

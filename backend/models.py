@@ -42,6 +42,22 @@ class Beneficiaire(Base):
     synced              = Column(Boolean, default=False)
     date_enregistrement = Column(DateTime, default=datetime.utcnow)
 
+class PersonnelSante(Base):
+    __tablename__ = "personnel_sante"
+    id              = Column(Integer, primary_key=True, index=True)
+    nom             = Column(String, nullable=False)
+    prenom          = Column(String, nullable=False)
+    specialite      = Column(String, nullable=False)
+    telephone       = Column(String, nullable=True)
+    email           = Column(String, nullable=True)
+    latitude        = Column(Float, nullable=True)
+    longitude       = Column(Float, nullable=True)
+    zone            = Column(String, nullable=True)
+    disponibilite   = Column(Boolean, default=True)
+    statut          = Column(String, default="actif")
+    organisation_id = Column(Integer, default=1)
+    date_ajout      = Column(DateTime, default=datetime.utcnow)
+    
 class Collecte(Base):
     __tablename__ = "collectes"
     id            = Column(Integer, primary_key=True, index=True)
