@@ -11,6 +11,7 @@ import { syncPending } from './offline'
 import './index.css'
 import Personnel from './pages/Personnel'
 import Affectations from './pages/Affectations'
+import Zones from './pages/Zones'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -133,6 +134,7 @@ export default function App() {
       case 'beneficiaires': return <Beneficiaires token={token} />
       case 'agent': return <Agent token={token} />
       case 'affectations': return <Affectations token={token} />
+      case 'zones': return <Zones token={token} />
       default: return <Dashboard token={token} />
     }
   }

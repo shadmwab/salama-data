@@ -625,3 +625,107 @@ def affectations_par_zone(
                 "telephone": p.telephone or "—"
             })
     return zones
+
+class ZoneCreate(BaseModel):
+    nom: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    nb_deplaces: int = 0
+    description: Optional[str] = None
+
+@app.get("/zones")
+def lister_zones(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    zones = db.query(models.Zone).filter(
+        models.Zone.organisation_id == current_user.organisation_id
+    ).all()
+
+    result = []
+    for z in zones:
+        personnel_count = db.query(models.PersonnelSante).filter(
+            models.PersonnelSante.zone == z.nom,
+            models.PersonnelSante.organisation_id == current_user.organisation_id,
+            models.PersonnelSante.disponibilite == False
+        ).count()
+
+        if personnel_count == 0:
+            ratio = z.nb_deplaces
+        else:
+            ratio = z.nb_deplaces / personnel_count
+
+        if ratio == 0:
+            criticite = "stable"
+        elif ratio < 500:
+            criticite = "stable"
+        elif ratio < 1000:
+            criticite = "tension"
+        else:
+            criticite = "critique"
+
+        result.append({
+            "id": z.id,
+            "nom": z.nom,
+            "latitude": z.latitude,
+            "longitude": z.longitude,
+            "nb_deplaces": z.nb_deplaces,
+            "nb_personnel": personnel_count,
+            "ratio": round(ratio, 1),
+            "criticite": criticite,
+            "description": z.description
+        })
+
+    return sorted(result, key=lambda x: ["critique","tension","stable"].index(x["criticite"]))
+
+@app.post("/zones")
+def creer_zone(
+    data: ZoneCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    z = models.Zone(
+        **data.model_dump(),
+        organisation_id=current_user.organisation_id
+    )
+    db.add(z)
+    db.commit()
+    db.refresh(z)
+    log_action(db, "ZONE_CREATED", f"Zone {data.nom} créée", user=current_user, request=request)
+    return {"id": z.id, "message": f"Zone {data.nom} créée avec succès"}
+
+@app.put("/zones/{zone_id}")
+def modifier_zone(
+    zone_id: int,
+    data: ZoneCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    z = db.query(models.Zone).filter(models.Zone.id == zone_id).first()
+    if not z:
+        raise HTTPException(status_code=404, detail="Zone non trouvée")
+    z.nom = data.nom
+    z.nb_deplaces = data.nb_deplaces
+    z.latitude = data.latitude
+    z.longitude = data.longitude
+    z.description = data.description
+    db.commit()
+    log_action(db, "ZONE_UPDATED", f"Zone {z.nom} mise à jour", user=current_user, request=request)
+    return {"message": "Zone mise à jour"}
+
+@app.delete("/zones/{zone_id}")
+def supprimer_zone(
+    zone_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    z = db.query(models.Zone).filter(models.Zone.id == zone_id).first()
+    if not z:
+        raise HTTPException(status_code=404, detail="Zone non trouvée")
+    db.delete(z)
+    db.commit()
+    log_action(db, "ZONE_DELETED", f"Zone {z.nom} supprimée", user=current_user, request=request)
+    return {"message": "Zone supprimée"}

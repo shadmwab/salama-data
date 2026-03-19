@@ -75,6 +75,17 @@ class Affectation(Base):
     notes           = Column(Text, nullable=True)
     organisation_id = Column(Integer, default=1)
     created_by      = Column(Integer, nullable=True)
+
+class Zone(Base):
+    __tablename__ = "zones"
+    id                  = Column(Integer, primary_key=True, index=True)
+    nom                 = Column(String, nullable=False)
+    latitude            = Column(Float, nullable=True)
+    longitude           = Column(Float, nullable=True)
+    nb_deplaces         = Column(Integer, default=0)
+    description         = Column(Text, nullable=True)
+    organisation_id     = Column(Integer, default=1)
+    date_creation       = Column(DateTime, default=datetime.utcnow)
     
 class Collecte(Base):
     __tablename__ = "collectes"
