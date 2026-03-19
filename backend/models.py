@@ -25,26 +25,55 @@ class User(Base):
     date_creation       = Column(DateTime, default=datetime.utcnow)
     derniere_connexion  = Column(DateTime, nullable=True)
 
+class Notification(Base):
+    __tablename__ = "notifications"
+    id              = Column(Integer, primary_key=True, index=True)
+    type            = Column(String, nullable=False)
+    titre           = Column(String, nullable=False)
+    message         = Column(Text, nullable=False)
+    niveau          = Column(String, default="info")
+    lu              = Column(Boolean, default=False)
+    organisation_id = Column(Integer, default=1)
+    date_creation   = Column(DateTime, default=datetime.utcnow)
+    
 class Beneficiaire(Base):
     __tablename__ = "beneficiaires"
     id                  = Column(Integer, primary_key=True, index=True)
+    # Identité
     nom                 = Column(String, nullable=False)
     prenom              = Column(String, nullable=False)
     age                 = Column(Integer)
     sexe                = Column(String)
+    telephone           = Column(String, nullable=True)
+    numero_cni          = Column(String, nullable=True)
+    photo_cni           = Column(Text, nullable=True)
+    # Famille
+    nom_referent        = Column(String, nullable=True)
+    telephone_referent  = Column(String, nullable=True)
+    # Localisation
     zone_origine        = Column(String)
     site_deplacement    = Column(String)
     nb_dependants       = Column(Integer, default=0)
     latitude            = Column(Float)
     longitude           = Column(Float)
+    # Vulnérabilité
+    groupe_vulnerable   = Column(String, nullable=True)
+    # Besoins prioritaires
+    besoin_eau          = Column(Boolean, default=False)
+    besoin_alimentation = Column(Boolean, default=False)
+    besoin_abri         = Column(Boolean, default=False)
+    besoin_sante        = Column(Boolean, default=False)
+    besoin_education    = Column(Boolean, default=False)
+    # Aide reçue
+    aide_alimentaire    = Column(Boolean, default=False)
+    aide_abri           = Column(Boolean, default=False)
+    aide_medicale       = Column(Boolean, default=False)
+    # Statut
     agent_id            = Column(String)
     organisation_id     = Column(Integer, default=1)
     synced              = Column(Boolean, default=False)
     verifie             = Column(Boolean, default=False)
     doublon_detecte     = Column(Boolean, default=False)
-    aide_alimentaire    = Column(Boolean, default=False)
-    aide_abri           = Column(Boolean, default=False)
-    aide_medicale       = Column(Boolean, default=False)
     notes               = Column(Text, nullable=True)
     date_enregistrement = Column(DateTime, default=datetime.utcnow)
 
@@ -86,7 +115,7 @@ class Zone(Base):
     description         = Column(Text, nullable=True)
     organisation_id     = Column(Integer, default=1)
     date_creation       = Column(DateTime, default=datetime.utcnow)
-    
+
 class Collecte(Base):
     __tablename__ = "collectes"
     id            = Column(Integer, primary_key=True, index=True)

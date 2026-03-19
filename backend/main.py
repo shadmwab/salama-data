@@ -66,12 +66,44 @@ class BeneficiaireCreate(BaseModel):
     prenom: str
     age: Optional[int] = None
     sexe: Optional[str] = None
+    telephone: Optional[str] = None
+    numero_cni: Optional[str] = None
+    photo_cni: Optional[str] = None
+    nom_referent: Optional[str] = None
+    telephone_referent: Optional[str] = None
     zone_origine: Optional[str] = None
     site_deplacement: Optional[str] = None
     nb_dependants: int = 0
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    groupe_vulnerable: Optional[str] = None
+    besoin_eau: bool = False
+    besoin_alimentation: bool = False
+    besoin_abri: bool = False
+    besoin_sante: bool = False
+    besoin_education: bool = False
     agent_id: Optional[str] = None
+    notes: Optional[str] = None
+
+@app.delete("/beneficiaires/{beneficiaire_id}")
+def supprimer_beneficiaire(
+    beneficiaire_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    b = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.id == beneficiaire_id,
+        models.Beneficiaire.organisation_id == current_user.organisation_id
+    ).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+    db.delete(b)
+    db.commit()
+    log_action(db, "BENEFICIAIRE_DELETED",
+               f"Bénéficiaire {b.prenom} {b.nom} supprimé",
+               user=current_user, request=request)
+    return {"message": "Bénéficiaire supprimé"}
 
 class AgentQuestion(BaseModel):
     question: str
@@ -730,3 +762,170 @@ def supprimer_zone(
     db.commit()
     log_action(db, "ZONE_DELETED", f"Zone {z.nom} supprimée", user=current_user, request=request)
     return {"message": "Zone supprimée"}
+
+@app.get("/notifications")
+def get_notifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return db.query(models.Notification).filter(
+        models.Notification.organisation_id == current_user.organisation_id
+    ).order_by(models.Notification.date_creation.desc()).limit(20).all()
+
+@app.post("/notifications/generer")
+def generer_notifications(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    org_id = current_user.organisation_id
+    notifications = []
+
+    # Analyse doublons
+    doublons = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id,
+        models.Beneficiaire.doublon_detecte == True
+    ).count()
+    if doublons > 0:
+        notifications.append(models.Notification(
+            type="doublon",
+            titre=f"⚠️ {doublons} doublon(s) détecté(s)",
+            message=f"{doublons} bénéficiaires ont été identifiés comme doublons potentiels. Vérifiez et nettoyez la base pour éviter la distribution multiple.",
+            niveau="warning",
+            organisation_id=org_id
+        ))
+
+    # Analyse besoins santé non couverts
+    besoin_sante = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id,
+        models.Beneficiaire.besoin_sante == True,
+        models.Beneficiaire.aide_medicale == False
+    ).count()
+    if besoin_sante > 0:
+        personnel_dispo = db.query(models.PersonnelSante).filter(
+            models.PersonnelSante.organisation_id == org_id,
+            models.PersonnelSante.disponibilite == True
+        ).count()
+        niveau = "critique" if besoin_sante > 100 else "warning"
+        notifications.append(models.Notification(
+            type="sante",
+            titre=f"🏥 {besoin_sante} bénéficiaire(s) nécessitent des soins",
+            message=f"{besoin_sante} personnes ont un besoin médical non couvert. Personnel disponible : {personnel_dispo} agent(s). {'Action urgente requise.' if niveau == 'critique' else 'Planifiez une intervention.'}",
+            niveau=niveau,
+            organisation_id=org_id
+        ))
+
+    # Analyse besoins eau
+    besoin_eau = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id,
+        models.Beneficiaire.besoin_eau == True
+    ).count()
+    if besoin_eau > 0:
+        notifications.append(models.Notification(
+            type="eau",
+            titre=f"💧 {besoin_eau} personne(s) sans accès à l'eau",
+            message=f"{besoin_eau} bénéficiaires ont signalé un manque d'accès à l'eau potable et à l'assainissement. Intervention WASH prioritaire recommandée.",
+            niveau="warning",
+            organisation_id=org_id
+        ))
+
+    # Analyse besoins alimentation
+    besoin_alim = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id,
+        models.Beneficiaire.besoin_alimentation == True,
+        models.Beneficiaire.aide_alimentaire == False
+    ).count()
+    if besoin_alim > 0:
+        notifications.append(models.Notification(
+            type="alimentation",
+            titre=f"🌾 {besoin_alim} personne(s) en insécurité alimentaire",
+            message=f"{besoin_alim} bénéficiaires n'ont pas encore reçu d'aide alimentaire malgré un besoin identifié. Distribution prioritaire recommandée.",
+            niveau="warning",
+            organisation_id=org_id
+        ))
+
+    # Analyse zones critiques
+    zones = db.query(models.Zone).filter(
+        models.Zone.organisation_id == org_id
+    ).all()
+    for z in zones:
+        personnel_zone = db.query(models.PersonnelSante).filter(
+            models.PersonnelSante.zone == z.nom,
+            models.PersonnelSante.organisation_id == org_id
+        ).count()
+        if z.nb_deplaces > 0 and personnel_zone == 0:
+            notifications.append(models.Notification(
+                type="zone_critique",
+                titre=f"🚨 Zone {z.nom} sans personnel",
+                message=f"La zone {z.nom} compte {z.nb_deplaces} déplacés mais aucun personnel de santé affecté. Affectation urgente recommandée.",
+                niveau="critique",
+                organisation_id=org_id
+            ))
+
+    # Analyse vulnérables sans aide
+    vulnerables = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id,
+        models.Beneficiaire.groupe_vulnerable != "Aucun",
+        models.Beneficiaire.groupe_vulnerable != None,
+        models.Beneficiaire.verifie == False
+    ).count()
+    if vulnerables > 0:
+        notifications.append(models.Notification(
+            type="vulnerable",
+            titre=f"👶 {vulnerables} personne(s) vulnérable(s) non vérifiée(s)",
+            message=f"{vulnerables} bénéficiaires appartenant à des groupes vulnérables (enfants, femmes enceintes, handicapés) n'ont pas encore été vérifiés. Priorisation recommandée.",
+            niveau="warning",
+            organisation_id=org_id
+        ))
+
+    # Analyse non vérifiés
+    non_verifies = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id,
+        models.Beneficiaire.verifie == False
+    ).count()
+    total = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id
+    ).count()
+    if total > 0 and non_verifies > total * 0.5:
+        notifications.append(models.Notification(
+            type="verification",
+            titre=f"📋 {non_verifies}/{total} bénéficiaires non vérifiés",
+            message=f"Plus de 50% des bénéficiaires enregistrés n'ont pas encore été vérifiés. La vérification d'identité réduit les risques de fraude et de distribution multiple.",
+            niveau="info",
+            organisation_id=org_id
+        ))
+
+    # Sauvegarder
+    for n in notifications:
+        db.add(n)
+    db.commit()
+
+    log_action(db, "NOTIFICATIONS_GENERATED",
+               f"{len(notifications)} notification(s) générée(s)",
+               user=current_user, request=request)
+    return {"generated": len(notifications), "notifications": [{"titre": n.titre, "niveau": n.niveau} for n in notifications]}
+
+@app.put("/notifications/{notif_id}/lire")
+def marquer_lu(
+    notif_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    n = db.query(models.Notification).filter(
+        models.Notification.id == notif_id
+    ).first()
+    if n:
+        n.lu = True
+        db.commit()
+    return {"message": "Notification lue"}
+
+@app.delete("/notifications/effacer")
+def effacer_notifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    db.query(models.Notification).filter(
+        models.Notification.organisation_id == current_user.organisation_id
+    ).delete()
+    db.commit()
+    return {"message": "Notifications effacées"}
