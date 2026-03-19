@@ -266,10 +266,10 @@ export default function Login({ onLogin, onJoinRequest }) {
             © 2026 Salama Data · Tous droits réservés
           </p>
           <p style={{ fontSize: '11px', color: '#B0BEC5', marginTop: '4px' }}>
-            Développé par Shadrack N'Sapu Mwabilwa · Goma, RDC
+            Développé par UMANDE INVESTMENT LIMITED · Goma, RDC
           </p>
           <p style={{ fontSize: '11px', color: '#B0BEC5', marginTop: '2px' }}>
-            Plateforme humanitaire de protection des données · v1.0
+            Plateforme humanitaire de protection des données · v2.0
           </p>
         </div>
 

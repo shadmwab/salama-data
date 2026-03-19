@@ -94,7 +94,7 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, user, onLog
           ))}
         </div>
 
-        <p style={{ color: '#5A8AA8', fontSize: '11px' }}>Salama Data MVP v1.0</p>
+        <p style={{ color: '#5A8AA8', fontSize: '11px' }}>Salama Data MVP v2.0</p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '6px', background: isOnline ? 'rgba(29,158,117,0.15)' : 'rgba(186,117,23,0.15)' }}>
             <Icon name={isOnline ? 'online' : 'offline'} size={12} color={isOnline ? '#1D9E75' : '#BA7517'} />

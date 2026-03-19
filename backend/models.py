@@ -35,6 +35,17 @@ class Notification(Base):
     lu              = Column(Boolean, default=False)
     organisation_id = Column(Integer, default=1)
     date_creation   = Column(DateTime, default=datetime.utcnow)
+
+class RessourcesLocales(Base):
+    __tablename__ = "ressources_locales"
+    id                  = Column(Integer, primary_key=True, index=True)
+    organisation_id     = Column(Integer, default=1)
+    personnel_medical   = Column(Float, nullable=True)
+    eau_potable         = Column(Float, nullable=True)
+    nourriture          = Column(Float, nullable=True)
+    abris               = Column(Float, nullable=True)
+    ecoles              = Column(Float, nullable=True)
+    date_mise_a_jour    = Column(DateTime, default=datetime.utcnow)
     
 class Beneficiaire(Base):
     __tablename__ = "beneficiaires"

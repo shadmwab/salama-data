@@ -42,7 +42,12 @@ export default function Dashboard({ token }) {
   const [generating, setGenerating] = useState(false)
   const [notifMsg, setNotifMsg] = useState(null)
   const { t } = useLang()
-
+  const [ressources, setRessources] = useState({})
+  const [showRessourcesForm, setShowRessourcesForm] = useState(false)
+  const [savingRessources, setSavingRessources] = useState(false)
+  const [ressourcesForm, setRessourcesForm] = useState({
+  personnel_medical: '', eau_potable: '', nourriture: '', abris: '', ecoles: ''
+})
   const headers = { Authorization: `Bearer ${token}` }
 
   const ressourcesData = [
@@ -63,7 +68,19 @@ export default function Dashboard({ token }) {
     axios.get(`${API}/zones`, { headers })
       .then(r => setZones(r.data))
       .catch(() => {})
-  }, [token])
+  axios.get(`${API}/ressources`, { headers })
+  .then(r => {
+    setRessources(r.data)
+    setRessourcesForm({
+      personnel_medical: r.data.personnel_medical?.valeur ?? '',
+      eau_potable:       r.data.eau_potable?.valeur ?? '',
+      nourriture:        r.data.nourriture?.valeur ?? '',
+      abris:             r.data.abris?.valeur ?? '',
+      ecoles:            r.data.ecoles?.valeur ?? '',
+    })
+  })
+  .catch(() => {})
+    }, [token])
 
   const generer = async () => {
     setGenerating(true)
@@ -95,7 +112,46 @@ export default function Dashboard({ token }) {
     if (criticite === 'tension') return '#F59E0B'
     return '#1D9E75'
   }
+  
+  const ressourcesChartData = [
+  { resource: 'Personnel', value: ressources.personnel_medical?.valeur ?? 0 },
+  { resource: 'Eau',       value: ressources.eau_potable?.valeur ?? 0 },
+  { resource: 'Nourriture',value: ressources.nourriture?.valeur ?? 0 },
+  { resource: 'Abris',     value: ressources.abris?.valeur ?? 0 },
+  { resource: 'Écoles',    value: ressources.ecoles?.valeur ?? 0 },
+]
 
+const saveRessources = async () => {
+  setSavingRessources(true)
+  try {
+    await axios.put(`${API}/ressources`, {
+      personnel_medical: parseFloat(ressourcesForm.personnel_medical) || null,
+      eau_potable:       parseFloat(ressourcesForm.eau_potable) || null,
+      nourriture:        parseFloat(ressourcesForm.nourriture) || null,
+      abris:             parseFloat(ressourcesForm.abris) || null,
+      ecoles:            parseFloat(ressourcesForm.ecoles) || null,
+    }, { headers })
+    const r = await axios.get(`${API}/ressources`, { headers })
+    setRessources(r.data)
+    setShowRessourcesForm(false)
+  } catch {}
+  setSavingRessources(false)
+}
+
+const resetRessources = async () => {
+  try {
+    await axios.delete(`${API}/ressources/reset`, { headers })
+    const r = await axios.get(`${API}/ressources`, { headers })
+    setRessources(r.data)
+    setRessourcesForm({
+      personnel_medical: r.data.personnel_medical?.valeur ?? '',
+      eau_potable:       r.data.eau_potable?.valeur ?? '',
+      nourriture:        r.data.nourriture?.valeur ?? '',
+      abris:             r.data.abris?.valeur ?? '',
+      ecoles:            r.data.ecoles?.valeur ?? '',
+    })
+  } catch {}
+}
   return (
     <div>
       {/* Header */}
@@ -173,51 +229,105 @@ export default function Dashboard({ token }) {
         </div>
 
         {/* Graphique Radar Ressources */}
-        <div style={{ background: 'white', borderRadius: '10px', border: '1px solid #DDE3EC', padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <div style={{ width: '4px', height: '20px', background: '#1D9E75', borderRadius: '2px' }} />
-            <div>
-              <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#0D2E4E', margin: 0 }}>Ressources locales</h2>
-              <p style={{ fontSize: '11px', color: '#94A3B8', margin: '2px 0 0' }}>Compétences & mécanismes de survie</p>
+<div style={{ background: 'white', borderRadius: '10px', border: '1px solid #DDE3EC', padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ width: '4px', height: '20px', background: '#1D9E75', borderRadius: '2px' }} />
+      <div>
+        <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#0D2E4E', margin: 0 }}>Ressources locales</h2>
+        <p style={{ fontSize: '11px', color: '#94A3B8', margin: '2px 0 0' }}>Compétences & mécanismes de survie</p>
+      </div>
+    </div>
+    <button
+      onClick={() => setShowRessourcesForm(!showRessourcesForm)}
+      style={{ padding: '5px 10px', background: showRessourcesForm ? '#64748B' : '#E6F4FB', color: showRessourcesForm ? 'white' : '#1A4B7A', border: `1px solid ${showRessourcesForm ? '#64748B' : '#B5D4F4'}`, borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', gap: '5px' }}
+    >
+      <Icon name="sliders" size={12} color={showRessourcesForm ? 'white' : '#1A4B7A'} />
+      {showRessourcesForm ? 'Fermer' : 'Ajuster'}
+    </button>
+  </div>
+
+  {/* Formulaire correction manuelle */}
+  {showRessourcesForm && (
+    <div style={{ background: '#F8FAFC', borderRadius: '8px', padding: '12px', marginBottom: '10px', border: '1px solid #DDE3EC' }}>
+      <p style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>Correction manuelle (%)</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+        {[
+          { key: 'personnel_medical', label: 'Personnel médical', icon: 'medical' },
+          { key: 'eau_potable',       label: 'Eau potable',       icon: 'water' },
+          { key: 'nourriture',        label: 'Nourriture',        icon: 'food' },
+          { key: 'abris',             label: 'Abris',             icon: 'shelter' },
+          { key: 'ecoles',            label: 'Écoles',            icon: 'school' },
+        ].map(r => (
+          <div key={r.key}>
+            <label style={{ fontSize: '10px', fontWeight: '600', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
+              <Icon name={r.icon} size={11} color="#64748B" />
+              {r.label}
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <input
+                type="number" min="0" max="100"
+                value={ressourcesForm[r.key]}
+                onChange={e => setRessourcesForm(prev => ({ ...prev, [r.key]: e.target.value }))}
+                style={{ width: '60px', padding: '5px 8px', border: '1px solid #DDE3EC', borderRadius: '6px', fontSize: '12px', fontFamily: "'Poppins', sans-serif", outline: 'none' }}
+              />
+              <span style={{ fontSize: '11px', color: '#94A3B8' }}>%</span>
+              <span style={{ fontSize: '10px', color: '#B0BEC5' }}>auto: {ressources[r.key]?.auto ?? '—'}%</span>
             </div>
           </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '6px' }}>
+        <button onClick={saveRessources} disabled={savingRessources} style={{ flex: 1, padding: '7px', background: savingRessources ? '#64748B' : '#1A4B7A', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+          <Icon name="save" size={12} color="white" />
+          {savingRessources ? 'Sauvegarde...' : 'Sauvegarder'}
+        </button>
+        <button onClick={resetRessources} style={{ padding: '7px 12px', background: 'white', color: '#64748B', border: '1px solid #DDE3EC', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Icon name="refresh" size={12} color="#64748B" />
+          Auto
+        </button>
+      </div>
+    </div>
+  )}
 
-          <ResponsiveContainer width="100%" height={200}>
-            <RadarChart data={ressourcesData}>
-              <PolarGrid stroke="#F1F5F9" />
-              <PolarAngleAxis dataKey="resource" tick={{ fontSize: 10, fill: '#64748B', fontFamily: 'Poppins' }} />
-              <Radar name="Disponibilité" dataKey="value" stroke="#1A4B7A" fill="#1A4B7A" fillOpacity={0.25} strokeWidth={2} />
-              <Tooltip
-                contentStyle={{ fontFamily: 'Poppins', fontSize: '12px', border: '1px solid #DDE3EC', borderRadius: '8px' }}
-                formatter={(value) => [`${value}%`, 'Disponibilité']}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
+  <ResponsiveContainer width="100%" height={180}>
+    <RadarChart data={ressourcesChartData}>
+      <PolarGrid stroke="#F1F5F9" />
+      <PolarAngleAxis dataKey="resource" tick={{ fontSize: 10, fill: '#64748B', fontFamily: 'Poppins' }} />
+      <Radar name="Disponibilité" dataKey="value" stroke="#1A4B7A" fill="#1A4B7A" fillOpacity={0.25} strokeWidth={2} />
+      <Tooltip contentStyle={{ fontFamily: 'Poppins', fontSize: '12px', border: '1px solid #DDE3EC', borderRadius: '8px' }} formatter={(value) => [`${value}%`, 'Disponibilité']} />
+    </RadarChart>
+  </ResponsiveContainer>
 
-          {/* Légende barres */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-            {[
-              { label: 'Personnel médical', value: 72, color: '#1A4B7A', icon: 'health' },
-              { label: 'Eau potable',       value: 45, color: '#085041', icon: 'sync' },
-              { label: 'Nourriture',        value: 58, color: '#BA7517', icon: 'report' },
-              { label: 'Abris',             value: 33, color: '#92400E', icon: 'zone' },
-              { label: 'Écoles',            value: 61, color: '#185FA5', icon: 'agent' },
-            ].map((r, i) => (
-              <div key={i}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Icon name={r.icon} size={12} color={r.color} />
-                    <span style={{ fontSize: '11px', color: '#374151' }}>{r.label}</span>
-                  </div>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: r.color }}>{r.value}%</span>
-                </div>
-                <div style={{ background: '#F1F5F9', borderRadius: '3px', height: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: `${r.value}%`, height: '100%', background: r.color, borderRadius: '3px' }} />
-                </div>
-              </div>
-            ))}
+  {/* Barres avec nouvelles icônes */}
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+    {[
+      { label: 'Personnel médical', key: 'personnel_medical', color: '#1A4B7A', icon: 'medical' },
+      { label: 'Eau potable',       key: 'eau_potable',       color: '#085041', icon: 'water' },
+      { label: 'Nourriture',        key: 'nourriture',        color: '#BA7517', icon: 'food' },
+      { label: 'Abris',             key: 'abris',             color: '#92400E', icon: 'shelter' },
+      { label: 'Écoles',            key: 'ecoles',            color: '#185FA5', icon: 'school' },
+    ].map((r, i) => {
+      const val = ressources[r.key]?.valeur ?? 0
+      const isManuel = ressources[r.key]?.manuel !== null && ressources[r.key]?.manuel !== undefined
+      return (
+        <div key={i}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Icon name={r.icon} size={13} color={r.color} />
+              <span style={{ fontSize: '11px', color: '#374151' }}>{r.label}</span>
+              {isManuel && <span style={{ fontSize: '9px', background: '#E6F4FB', color: '#185FA5', padding: '1px 5px', borderRadius: '3px', fontWeight: '600' }}>Manuel</span>}
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: r.color }}>{val}%</span>
+          </div>
+          <div style={{ background: '#F1F5F9', borderRadius: '3px', height: '5px', overflow: 'hidden' }}>
+            <div style={{ width: `${val}%`, height: '100%', background: r.color, borderRadius: '3px', transition: 'width 0.6s ease' }} />
           </div>
         </div>
+      )
+    })}
+  </div>
+</div>
       </div>
 
       {/* Ligne 2 — Zones actives + Notifications IA */}

@@ -211,6 +211,12 @@ export default function App() {
       </div>
 
       {/* Bouton flottant notifications */}
+      {/* Bouton flottant notifications — Admin et Manager seulement */}
+{user && token && (user.role === 'admin' || user.role === 'manager') && (
+  <div style={{ position: 'fixed', top: '16px', right: '20px', zIndex: 1000 }}>
+    {/* ... reste du bouton */}
+  </div>
+)}
       <div style={{ position: 'fixed', top: '16px', right: '20px', zIndex: 1000 }}>
         <button
           onClick={() => setShowNotifPanel(!showNotifPanel)}

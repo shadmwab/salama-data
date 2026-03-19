@@ -929,3 +929,109 @@ def effacer_notifications(
     ).delete()
     db.commit()
     return {"message": "Notifications effacées"}
+
+class RessourcesUpdate(BaseModel):
+    personnel_medical: Optional[float] = None
+    eau_potable: Optional[float] = None
+    nourriture: Optional[float] = None
+    abris: Optional[float] = None
+    ecoles: Optional[float] = None
+
+@app.get("/ressources")
+def get_ressources(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = current_user.organisation_id
+    total = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id
+    ).count()
+
+    # Calcul automatique
+    if total > 0:
+        sans_eau = db.query(models.Beneficiaire).filter(
+            models.Beneficiaire.organisation_id == org_id,
+            models.Beneficiaire.besoin_eau == False
+        ).count()
+        sans_alim = db.query(models.Beneficiaire).filter(
+            models.Beneficiaire.organisation_id == org_id,
+            models.Beneficiaire.besoin_alimentation == False
+        ).count()
+        sans_abri = db.query(models.Beneficiaire).filter(
+            models.Beneficiaire.organisation_id == org_id,
+            models.Beneficiaire.besoin_abri == False
+        ).count()
+        sans_educ = db.query(models.Beneficiaire).filter(
+            models.Beneficiaire.organisation_id == org_id,
+            models.Beneficiaire.besoin_education == False
+        ).count()
+        nb_personnel = db.query(models.PersonnelSante).filter(
+            models.PersonnelSante.organisation_id == org_id,
+            models.PersonnelSante.disponibilite == True
+        ).count()
+        auto = {
+            "personnel_medical": min(round((nb_personnel / max(total / 100, 1)) * 10, 1), 100),
+            "eau_potable":       round((sans_eau / total) * 100, 1),
+            "nourriture":        round((sans_alim / total) * 100, 1),
+            "abris":             round((sans_abri / total) * 100, 1),
+            "ecoles":            round((sans_educ / total) * 100, 1),
+        }
+    else:
+        auto = {
+            "personnel_medical": 0,
+            "eau_potable": 0,
+            "nourriture": 0,
+            "abris": 0,
+            "ecoles": 0,
+        }
+
+    # Corrections manuelles
+    manuel = db.query(models.RessourcesLocales).filter(
+        models.RessourcesLocales.organisation_id == org_id
+    ).first()
+
+    result = {}
+    for key in auto:
+        manuel_val = getattr(manuel, key, None) if manuel else None
+        result[key] = {
+            "auto": auto[key],
+            "manuel": manuel_val,
+            "valeur": manuel_val if manuel_val is not None else auto[key]
+        }
+
+    return result
+
+@app.put("/ressources")
+def update_ressources(
+    data: RessourcesUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    org_id = current_user.organisation_id
+    ressource = db.query(models.RessourcesLocales).filter(
+        models.RessourcesLocales.organisation_id == org_id
+    ).first()
+
+    if not ressource:
+        ressource = models.RessourcesLocales(organisation_id=org_id)
+        db.add(ressource)
+
+    if data.personnel_medical is not None: ressource.personnel_medical = data.personnel_medical
+    if data.eau_potable is not None: ressource.eau_potable = data.eau_potable
+    if data.nourriture is not None: ressource.nourriture = data.nourriture
+    if data.abris is not None: ressource.abris = data.abris
+    if data.ecoles is not None: ressource.ecoles = data.ecoles
+    ressource.date_mise_a_jour = datetime.utcnow()
+    db.commit()
+    return {"message": "Ressources mises à jour"}
+
+@app.delete("/ressources/reset")
+def reset_ressources(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    db.query(models.RessourcesLocales).filter(
+        models.RessourcesLocales.organisation_id == current_user.organisation_id
+    ).delete()
+    db.commit()
+    return {"message": "Ressources remises en calcul automatique"}
