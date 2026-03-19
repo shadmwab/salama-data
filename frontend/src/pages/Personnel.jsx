@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useLang } from '../LanguageContext'
+import { Icon } from '../components/Icons'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -32,14 +33,14 @@ export default function Personnel({ token }) {
     try {
       let url = `${API}/personnel?`
       if (filterDispo !== null) url += `disponible=${filterDispo}&`
-      if (filterSpec) url += `specialite=${filterSpec}`
+      if (filterSpec) url += `specialite=${encodeURIComponent(filterSpec)}`
       const [listRes, statsRes] = await Promise.all([
         axios.get(url, { headers }),
         axios.get(`${API}/personnel/stats`, { headers })
       ])
       setList(listRes.data)
       setStats(statsRes.data)
-    } catch {}
+    } catch (e) { console.error(e) }
     setLoading(false)
   }
 
@@ -82,37 +83,50 @@ export default function Personnel({ token }) {
     textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block'
   }
 
-  const statCard = (num, label, color, bg) => (
-    <div style={{ background: 'white', borderRadius: '10px', padding: '1.25rem', border: '1px solid #DDE3EC', flex: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-      <p style={{ fontSize: '28px', fontWeight: '700', color, margin: 0 }}>{num}</p>
-      <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>{label}</p>
+  const statCard = (num, label, color, bg, icon) => (
+    <div style={{
+      background: 'white', borderRadius: '10px', padding: '1.25rem',
+      border: '1px solid #DDE3EC', flex: 1,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      display: 'flex', gap: '12px', alignItems: 'center'
+    }}>
+      <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Icon name={icon} size={18} color={color} />
+      </div>
+      <div>
+        <p style={{ fontSize: '26px', fontWeight: '700', color, margin: 0, lineHeight: 1 }}>{num}</p>
+        <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', margin: 0 }}>{label}</p>
+      </div>
     </div>
   )
 
   return (
     <div style={{ fontFamily: "'Poppins', sans-serif" }}>
+      {/* Header */}
       <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>RESSOURCES HUMAINES</p>
           <h1 style={{ fontSize: '26px', fontWeight: '700', color: '#0D2E4E', margin: 0 }}>Personnel de Santé</h1>
-          <p style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>Gestion du personnel médical et humanitaire</p>
+          <p style={{ color: '#64748B', marginTop: '4px', fontSize: '14px' }}>Gestion du personnel médical et humanitaire</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} style={{
           padding: '10px 20px', background: showForm ? '#64748B' : '#1D9E75',
           color: 'white', border: 'none', borderRadius: '8px',
           fontSize: '14px', fontWeight: '600', cursor: 'pointer',
-          fontFamily: "'Poppins', sans-serif"
+          fontFamily: "'Poppins', sans-serif",
+          display: 'flex', alignItems: 'center', gap: '8px'
         }}>
-          {showForm ? '✕ Annuler' : '+ Ajouter personnel'}
+          <Icon name={showForm ? 'close' : 'add'} size={16} color="white" />
+          {showForm ? 'Annuler' : 'Ajouter personnel'}
         </button>
       </div>
 
       {/* Stats */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        {statCard(stats?.total ?? '...', 'Total personnel', '#1A4B7A', '#E6F4FB')}
-        {statCard(stats?.disponibles ?? '...', 'Disponibles', '#085041', '#E1F5EE')}
-        {statCard(stats?.indisponibles ?? '...', 'Indisponibles', '#A32D2D', '#FCEBEB')}
-        {statCard(Object.keys(stats?.par_specialite || {}).length, 'Spécialités', '#BA7517', '#FAEEDA')}
+        {statCard(stats?.total ?? '...', 'Total personnel', '#1A4B7A', '#E6F4FB', 'health')}
+        {statCard(stats?.disponibles ?? '...', 'Disponibles', '#085041', '#E1F5EE', 'check')}
+        {statCard(stats?.indisponibles ?? '...', 'Indisponibles', '#A32D2D', '#FCEBEB', 'close')}
+        {statCard(Object.keys(stats?.par_specialite || {}).length, 'Spécialités', '#BA7517', '#FAEEDA', 'chart')}
       </div>
 
       {/* Formulaire ajout */}
@@ -168,8 +182,12 @@ export default function Personnel({ token }) {
               background: msg.type === 'success' ? '#E1F5EE' : '#FCEBEB',
               color: msg.type === 'success' ? '#085041' : '#A32D2D',
               fontSize: '13px', fontWeight: '500',
-              border: `1px solid ${msg.type === 'success' ? '#9FE1CB' : '#F7C1C1'}`
-            }}>{msg.text}</div>
+              border: `1px solid ${msg.type === 'success' ? '#9FE1CB' : '#F7C1C1'}`,
+              display: 'flex', alignItems: 'center', gap: '8px'
+            }}>
+              <Icon name={msg.type === 'success' ? 'check' : 'alert'} size={14} color={msg.type === 'success' ? '#085041' : '#A32D2D'} />
+              {msg.text}
+            </div>
           )}
 
           <button onClick={handleSubmit} disabled={saving} style={{
@@ -177,24 +195,32 @@ export default function Personnel({ token }) {
             background: saving ? '#64748B' : '#1D9E75',
             color: 'white', border: 'none', borderRadius: '8px',
             fontSize: '14px', fontWeight: '700', cursor: saving ? 'not-allowed' : 'pointer',
-            fontFamily: "'Poppins', sans-serif"
+            fontFamily: "'Poppins', sans-serif",
+            display: 'flex', alignItems: 'center', gap: '8px'
           }}>
-            {saving ? '⏳ Enregistrement...' : '✓ Enregistrer'}
+            <Icon name={saving ? 'spinner' : 'check'} size={15} color="white" />
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
           </button>
         </div>
       )}
 
       {/* Filtres */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        {[null, true, false].map((v, i) => (
-          <button key={i} onClick={() => setFilterDispo(v)} style={{
+        {[
+          { val: null,  label: 'Tous',          icon: 'people' },
+          { val: true,  label: 'Disponibles',   icon: 'check' },
+          { val: false, label: 'Indisponibles', icon: 'close' },
+        ].map((f, i) => (
+          <button key={i} onClick={() => setFilterDispo(f.val)} style={{
             padding: '6px 14px', border: '1px solid #DDE3EC', borderRadius: '20px',
-            background: filterDispo === v ? '#1A4B7A' : 'white',
-            color: filterDispo === v ? 'white' : '#64748B',
+            background: filterDispo === f.val ? '#1A4B7A' : 'white',
+            color: filterDispo === f.val ? 'white' : '#64748B',
             fontSize: '12px', fontWeight: '600', cursor: 'pointer',
-            fontFamily: "'Poppins', sans-serif"
+            fontFamily: "'Poppins', sans-serif",
+            display: 'flex', alignItems: 'center', gap: '6px'
           }}>
-            {i === 0 ? 'Tous' : i === 1 ? '🟢 Disponibles' : '🔴 Indisponibles'}
+            <Icon name={f.icon} size={12} color={filterDispo === f.val ? 'white' : '#64748B'} />
+            {f.label}
           </button>
         ))}
         <select onChange={e => setFilterSpec(e.target.value)} style={{
@@ -219,7 +245,9 @@ export default function Personnel({ token }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#64748B' }}>Chargement...</td></tr>
+              <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#64748B' }}>
+                <Icon name="spinner" size={20} color="#94A3B8" />
+              </td></tr>
             ) : list.length === 0 ? (
               <tr><td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>Aucun personnel enregistré.</td></tr>
             ) : list.map((p, i) => (
@@ -247,17 +275,24 @@ export default function Personnel({ token }) {
                   <span style={{
                     background: p.statut === 'actif' ? '#E1F5EE' : '#FAEEDA',
                     color: p.statut === 'actif' ? '#085041' : '#BA7517',
-                    padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600'
-                  }}>{p.statut === 'actif' ? 'Actif' : 'Retraité'}</span>
+                    padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                    display: 'inline-flex', alignItems: 'center', gap: '5px'
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: p.statut === 'actif' ? '#1D9E75' : '#F59E0B', display: 'inline-block' }} />
+                    {p.statut === 'actif' ? 'Actif' : 'Retraité'}
+                  </span>
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   <button onClick={() => toggleDispo(p.id, p.disponibilite)} style={{
                     padding: '5px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
                     background: p.disponibilite ? '#E1F5EE' : '#FCEBEB',
                     color: p.disponibilite ? '#085041' : '#A32D2D',
-                    fontSize: '12px', fontWeight: '600', fontFamily: "'Poppins', sans-serif"
+                    fontSize: '12px', fontWeight: '600', fontFamily: "'Poppins', sans-serif",
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    border: `1px solid ${p.disponibilite ? '#9FE1CB' : '#F7C1C1'}`
                   }}>
-                    {p.disponibilite ? '🟢 Disponible' : '🔴 Indisponible'}
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: p.disponibilite ? '#1D9E75' : '#DC2626', display: 'inline-block', flexShrink: 0 }} />
+                    {p.disponibilite ? 'Disponible' : 'Indisponible'}
                   </button>
                 </td>
               </tr>

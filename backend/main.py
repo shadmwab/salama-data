@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
@@ -148,6 +149,31 @@ class PersonnelUpdate(BaseModel):
     disponibilite: Optional[bool] = None
     statut: Optional[str] = None
     zone: Optional[str] = None
+@app.get("/personnel/stats")
+def stats_personnel(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = current_user.organisation_id
+    total = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).count()
+    disponibles = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id,
+        models.PersonnelSante.disponibilite == True
+    ).count()
+    specialites = db.query(
+        models.PersonnelSante.specialite,
+        func.count(models.PersonnelSante.id)
+    ).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).group_by(models.PersonnelSante.specialite).all()
+    return {
+        "total": total,
+        "disponibles": disponibles,
+        "indisponibles": total - disponibles,
+        "par_specialite": {s: c for s, c in specialites}
+    }
 
 @app.get("/personnel")
 def lister_personnel(
@@ -221,31 +247,6 @@ def supprimer_personnel(
     log_action(db, "PERSONNEL_DELETED", f"Personnel {p.prenom} {p.nom} supprimé", user=current_user, request=request)
     return {"message": "Personnel supprimé"}
 
-@app.get("/personnel/stats")
-def stats_personnel(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = current_user.organisation_id
-    total = db.query(models.PersonnelSante).filter(
-        models.PersonnelSante.organisation_id == org_id
-    ).count()
-    disponibles = db.query(models.PersonnelSante).filter(
-        models.PersonnelSante.organisation_id == org_id,
-        models.PersonnelSante.disponibilite == True
-    ).count()
-    specialites = db.query(
-        models.PersonnelSante.specialite,
-        func.count(models.PersonnelSante.id)
-    ).filter(
-        models.PersonnelSante.organisation_id == org_id
-    ).group_by(models.PersonnelSante.specialite).all()
-    return {
-        "total": total,
-        "disponibles": disponibles,
-        "indisponibles": total - disponibles,
-        "par_specialite": {s: c for s, c in specialites}
-    }
 
 @app.get("/auth/me")
 def get_me(current_user: User = Depends(get_current_user)):
