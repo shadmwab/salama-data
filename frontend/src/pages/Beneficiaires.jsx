@@ -251,12 +251,12 @@ export default function Beneficiaires({ token }) {
                     <button
                       onClick={() => updateAide(selected.id, item.field, !selected[item.field])}
                       style={{
-                        padding: '3px 10px', border: 'none', borderRadius: '6px', cursor: 'pointer',
-                        background: selected[item.field] ? '#E1F5EE' : '#F8FAFC',
-                        color: selected[item.field] ? '#085041' : '#94A3B8',
-                        fontSize: '11px', fontWeight: '600',
-                        fontFamily: "'Poppins', sans-serif",
-                        border: `1px solid ${selected[item.field] ? '#9FE1CB' : '#DDE3EC'}`
+                      padding: '3px 10px', borderRadius: '6px', cursor: 'pointer',
+                      background: selected[item.field] ? '#E1F5EE' : '#F8FAFC',
+                      color: selected[item.field] ? '#085041' : '#94A3B8',
+                      fontSize: '11px', fontWeight: '600',
+                      fontFamily: "'Poppins', sans-serif",
+                      border: `1px solid ${selected[item.field] ? '#9FE1CB' : '#DDE3EC'}`
                       }}>
                       {selected[item.field] ? 'Distribué' : 'En attente'}
                     </button>

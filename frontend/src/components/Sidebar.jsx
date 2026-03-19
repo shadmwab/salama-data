@@ -9,6 +9,7 @@ const getLinks = (t, role) => {
     { id: 'beneficiaires', icon: 'people',    label: t('nav_beneficiaires'), roles: ['admin','manager'] },
     { id: 'personnel',     icon: 'health',    label: 'Personnel de Santé',   roles: ['admin','manager'] },
     { id: 'agent',         icon: 'agent_ai',  label: t('nav_agent'),         roles: ['admin','manager'] },
+    { id: 'affectations', icon: 'map', label: 'Affectations', roles: ['admin', 'manager'] },
   ]
   return all.filter(l => l.roles.includes(role))
 }

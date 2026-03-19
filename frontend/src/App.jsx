@@ -10,6 +10,7 @@ import JoinRequest from './pages/JoinRequest'
 import { syncPending } from './offline'
 import './index.css'
 import Personnel from './pages/Personnel'
+import Affectations from './pages/Affectations'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -131,6 +132,7 @@ export default function App() {
       case 'collecte': return <Collecte token={token} user={user} />
       case 'beneficiaires': return <Beneficiaires token={token} />
       case 'agent': return <Agent token={token} />
+      case 'affectations': return <Affectations token={token} />
       default: return <Dashboard token={token} />
     }
   }

@@ -493,3 +493,135 @@ def update_aide(
     db.commit()
     log_action(db, "AIDE_UPDATED", f"Aide mise à jour pour {b.prenom} {b.nom}", user=current_user, request=request)
     return {"message": "Aide mise à jour"}
+
+class AffectationCreate(BaseModel):
+    personnel_id: int
+    zone: str
+    notes: Optional[str] = None
+
+@app.get("/affectations")
+def lister_affectations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    affectations = db.query(models.Affectation).filter(
+        models.Affectation.organisation_id == current_user.organisation_id,
+        models.Affectation.statut == "active"
+    ).all()
+
+    result = []
+    for a in affectations:
+        p = db.query(models.PersonnelSante).filter(
+            models.PersonnelSante.id == a.personnel_id
+        ).first()
+        if p:
+            result.append({
+                "id": a.id,
+                "zone": a.zone,
+                "date_debut": a.date_debut,
+                "notes": a.notes,
+                "personnel": {
+                    "id": p.id,
+                    "nom": p.nom,
+                    "prenom": p.prenom,
+                    "specialite": p.specialite,
+                    "telephone": p.telephone,
+                    "disponibilite": p.disponibilite
+                }
+            })
+    return result
+
+@app.post("/affectations")
+def creer_affectation(
+    data: AffectationCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    p = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.id == data.personnel_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Personnel non trouvé")
+
+    existing = db.query(models.Affectation).filter(
+        models.Affectation.personnel_id == data.personnel_id,
+        models.Affectation.statut == "active"
+    ).first()
+    if existing:
+        existing.statut = "terminee"
+        existing.date_fin = datetime.utcnow()
+
+    a = models.Affectation(
+        personnel_id=data.personnel_id,
+        zone=data.zone,
+        notes=data.notes,
+        organisation_id=current_user.organisation_id,
+        created_by=current_user.id
+    )
+    db.add(a)
+    p.zone = data.zone
+    p.disponibilite = False
+    db.commit()
+    db.refresh(a)
+
+    log_action(db, "AFFECTATION_CREATED",
+               f"{p.prenom} {p.nom} affecté à {data.zone}",
+               user=current_user, request=request)
+    return {"id": a.id, "message": f"{p.prenom} {p.nom} affecté à {data.zone}"}
+
+@app.delete("/affectations/{affectation_id}")
+def terminer_affectation(
+    affectation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    a = db.query(models.Affectation).filter(
+        models.Affectation.id == affectation_id
+    ).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Affectation non trouvée")
+
+    a.statut = "terminee"
+    a.date_fin = datetime.utcnow()
+
+    p = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.id == a.personnel_id
+    ).first()
+    if p:
+        p.disponibilite = True
+        p.zone = None
+
+    db.commit()
+    log_action(db, "AFFECTATION_ENDED",
+               f"Affectation terminée pour zone {a.zone}",
+               user=current_user, request=request)
+    return {"message": "Affectation terminée"}
+
+@app.get("/affectations/par-zone")
+def affectations_par_zone(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    affectations = db.query(models.Affectation).filter(
+        models.Affectation.organisation_id == current_user.organisation_id,
+        models.Affectation.statut == "active"
+    ).all()
+
+    zones = {}
+    for a in affectations:
+        p = db.query(models.PersonnelSante).filter(
+            models.PersonnelSante.id == a.personnel_id
+        ).first()
+        if p:
+            if a.zone not in zones:
+                zones[a.zone] = []
+            zones[a.zone].append({
+                "affectation_id": a.id,
+                "personnel_id": p.id,
+                "nom": f"{p.prenom} {p.nom}",
+                "specialite": p.specialite,
+                "telephone": p.telephone or "—"
+            })
+    return zones
