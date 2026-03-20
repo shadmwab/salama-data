@@ -19,7 +19,7 @@ def send_email(to_email: str, to_name: str, subject: str, html: str) -> bool:
         api = get_api()
         send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
             to=[{"email": to_email, "name": to_name}],
-            sender={"email": "noreply@salama-data.org", "name": "Salama Data"},
+            sender={"email": "shadmwab@gmail.com", "name": "Salama Data"},
             subject=subject,
             html_content=html
         )
