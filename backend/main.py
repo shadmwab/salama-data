@@ -15,9 +15,10 @@ from auth import (
     hash_password, verify_password, create_token,
     get_current_user, require_role, ACCESS_TOKEN_EXPIRE_MINUTES
 )
-from email_service import send_welcome_agent, send_org_request_notification, send_org_approved
+from email_service import send_welcome_agent, send_org_request_notification, send_org_approved, send_reset_password_email
 from datetime import datetime, timedelta
 import secrets as secrets_module
+import os
 models.init_db()
 
 app = FastAPI(title="Salama Data API", version="2.0.0")
