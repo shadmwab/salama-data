@@ -13,6 +13,7 @@ import Zones from './pages/Zones'
 import { Icon } from './components/Icons'
 import { syncPending } from './offline'
 import './index.css'
+import Admin from './pages/Admin'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -53,6 +54,7 @@ export default function App() {
   const [showNotifPanel, setShowNotifPanel] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [notifCount, setNotifCount] = useState(0)
+  
 
   // Vérification session
   useEffect(() => {
@@ -162,6 +164,7 @@ export default function App() {
       case 'affectations':  return <Affectations token={token} />
       case 'zones':         return <Zones token={token} />
       case 'agent':         return <Agent token={token} />
+      case 'admin': return <Admin token={token} user={user} />
       default:              return <Dashboard token={token} />
     }
   }

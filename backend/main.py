@@ -323,7 +323,7 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(requi
              "derniere_connexion": u.derniere_connexion} for u in users]
 
 @app.post("/users")
-def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin", "manager"))):
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
