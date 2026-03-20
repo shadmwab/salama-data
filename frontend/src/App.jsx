@@ -197,9 +197,9 @@ export default function App() {
     )
   }
 
-  if (window.location.pathname === '/reset-password' || window.location.search.includes('token=')) {
-    return <ResetPassword onSuccess={() => { window.history.pushState({}, '', '/'); setShowForgotPassword(false) }} />
-  }
+  if (window.location.pathname.includes('reset-password') || window.location.search.includes('token=')) {
+  return <ResetPassword onSuccess={() => { window.history.pushState({}, '', '/'); setShowForgotPassword(false) }} />
+}
 
   if (showJoinRequest) {
     return <JoinRequest onBack={() => setShowJoinRequest(false)} />
