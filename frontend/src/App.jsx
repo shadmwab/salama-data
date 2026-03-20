@@ -16,6 +16,7 @@ import Admin from './pages/Admin'
 import { Icon } from './components/Icons'
 import { syncPending } from './offline'
 import './index.css'
+import Profil from './pages/Profil'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -173,6 +174,7 @@ export default function App() {
       case 'zones':         return <Zones token={token} />
       case 'admin':         return <Admin token={token} user={user} />
       case 'agent':         return <Agent token={token} />
+      case 'profil': return <Profil token={token} user={user} />
       default:              return <Dashboard token={token} />
     }
   }
