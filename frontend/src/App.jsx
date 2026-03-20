@@ -7,13 +7,15 @@ import Beneficiaires from './pages/Beneficiaires'
 import Agent from './pages/Agent'
 import Login from './pages/Login'
 import JoinRequest from './pages/JoinRequest'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import Personnel from './pages/Personnel'
 import Affectations from './pages/Affectations'
 import Zones from './pages/Zones'
+import Admin from './pages/Admin'
 import { Icon } from './components/Icons'
 import { syncPending } from './offline'
 import './index.css'
-import Admin from './pages/Admin'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -44,6 +46,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 export default function App() {
+  // ── TOUS LES STATES ──────────────────────────────────────────────
   const [page, setPage] = useState('dashboard')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [syncMsg, setSyncMsg] = useState(null)
@@ -51,11 +54,12 @@ export default function App() {
   const [token, setToken] = useState(null)
   const [checking, setChecking] = useState(true)
   const [showJoinRequest, setShowJoinRequest] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [showNotifPanel, setShowNotifPanel] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [notifCount, setNotifCount] = useState(0)
-  
 
+  // ── TOUS LES USEEFFECTS ───────────────────────────────────────────
   // Vérification session
   useEffect(() => {
     const savedToken = localStorage.getItem('salama_token')
@@ -63,14 +67,17 @@ export default function App() {
     if (savedToken && savedUser) {
       axios.get(`${API}/auth/me`, { headers: { Authorization: `Bearer ${savedToken}` } })
         .then(() => { setToken(savedToken); setUser(JSON.parse(savedUser)) })
-        .catch(() => { localStorage.removeItem('salama_token'); localStorage.removeItem('salama_user') })
+        .catch(() => {
+          localStorage.removeItem('salama_token')
+          localStorage.removeItem('salama_user')
+        })
         .finally(() => setChecking(false))
     } else {
       setChecking(false)
     }
   }, [])
 
-  // Chargement notifications
+  // Notifications
   useEffect(() => {
     if (!token) return
     const fetchNotifs = async () => {
@@ -135,6 +142,7 @@ export default function App() {
     document.head.appendChild(link)
   }, [isOnline])
 
+  // ── FONCTIONS ────────────────────────────────────────────────────
   const marquerLu = async (id) => {
     try {
       await axios.put(`${API}/notifications/${id}/lire`, {}, {
@@ -163,12 +171,13 @@ export default function App() {
       case 'personnel':     return <Personnel token={token} />
       case 'affectations':  return <Affectations token={token} />
       case 'zones':         return <Zones token={token} />
+      case 'admin':         return <Admin token={token} user={user} />
       case 'agent':         return <Agent token={token} />
-      case 'admin': return <Admin token={token} user={user} />
       default:              return <Dashboard token={token} />
     }
   }
 
+  // ── RETURNS CONDITIONNELS (après tous les hooks) ──────────────────
   if (checking) {
     return (
       <div style={{ minHeight: '100vh', background: '#EEF2F7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Poppins', sans-serif" }}>
@@ -186,13 +195,32 @@ export default function App() {
     )
   }
 
-  if (showJoinRequest) return <JoinRequest onBack={() => setShowJoinRequest(false)} />
-  if (!user || !token) return <Login onLogin={handleLogin} onJoinRequest={() => setShowJoinRequest(true)} />
+  if (window.location.pathname === '/reset-password' || window.location.search.includes('token=')) {
+    return <ResetPassword onSuccess={() => { window.history.pushState({}, '', '/'); setShowForgotPassword(false) }} />
+  }
 
+  if (showJoinRequest) {
+    return <JoinRequest onBack={() => setShowJoinRequest(false)} />
+  }
+
+  if (showForgotPassword) {
+    return <ForgotPassword onBack={() => setShowForgotPassword(false)} />
+  }
+
+  if (!user || !token) {
+    return (
+      <Login
+        onLogin={handleLogin}
+        onJoinRequest={() => setShowJoinRequest(true)}
+        onForgotPassword={() => setShowForgotPassword(true)}
+      />
+    )
+  }
+
+  // ── APP PRINCIPALE ────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
 
-      {/* Barre offline */}
       {!isOnline && (
         <div style={{ background: '#BA7517', color: 'white', padding: '9px 1.5rem', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
           <Icon name="offline" size={14} color="white" />
@@ -213,53 +241,25 @@ export default function App() {
         </main>
       </div>
 
-      {/* Bouton flottant notifications */}
       {/* Bouton flottant notifications — Admin et Manager seulement */}
-{user && token && (user.role === 'admin' || user.role === 'manager') && (
-  <div style={{ position: 'fixed', top: '16px', right: '20px', zIndex: 1000 }}>
-    {/* ... reste du bouton */}
-  </div>
-)}
-      <div style={{ position: 'fixed', top: '16px', right: '20px', zIndex: 1000 }}>
-        <button
-          onClick={() => setShowNotifPanel(!showNotifPanel)}
-          style={{
-            width: '44px', height: '44px', borderRadius: '10px',
-            background: notifCount > 0 ? '#A32D2D' : '#1A4B7A',
-            border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-            position: 'relative', transition: 'all 0.2s'
-          }}
-        >
-          <Icon name="alert" size={20} color="white" />
-          {notifCount > 0 && (
-            <span style={{
-              position: 'absolute', top: '-7px', right: '-7px',
-              background: '#DC2626', color: 'white', borderRadius: '50%',
-              width: '22px', height: '22px', fontSize: '11px', fontWeight: '700',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: '2px solid white', fontFamily: "'Poppins', sans-serif"
-            }}>
-              {notifCount > 9 ? '9+' : notifCount}
-            </span>
-          )}
-        </button>
-      </div>
+      {(user?.role === 'admin' || user?.role === 'manager') && (
+        <div style={{ position: 'fixed', top: '16px', right: '20px', zIndex: 1000 }}>
+          <button onClick={() => setShowNotifPanel(!showNotifPanel)} style={{ width: '44px', height: '44px', borderRadius: '10px', background: notifCount > 0 ? '#A32D2D' : '#1A4B7A', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', position: 'relative' }}>
+            <Icon name="alert" size={20} color="white" />
+            {notifCount > 0 && (
+              <span style={{ position: 'absolute', top: '-7px', right: '-7px', background: '#DC2626', color: 'white', borderRadius: '50%', width: '22px', height: '22px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid white', fontFamily: "'Poppins', sans-serif" }}>
+                {notifCount > 9 ? '9+' : notifCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Panel notifications */}
       {showNotifPanel && (
         <>
           <div onClick={() => setShowNotifPanel(false)} style={{ position: 'fixed', inset: 0, zIndex: 998, background: 'rgba(0,0,0,0.2)' }} />
-          <div style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px',
-            zIndex: 999, background: 'white',
-            boxShadow: '-4px 0 24px rgba(0,0,0,0.15)',
-            display: 'flex', flexDirection: 'column',
-            fontFamily: "'Poppins', sans-serif"
-          }}>
-
-            {/* Header */}
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', zIndex: 999, background: 'white', boxShadow: '-4px 0 24px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', fontFamily: "'Poppins', sans-serif" }}>
             <div style={{ background: '#0D2E4E', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <p style={{ color: '#7FB3D3', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>INTELLIGENCE ARTIFICIELLE</p>
@@ -277,7 +277,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Liste */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {notifications.length === 0 ? (
                 <div style={{ padding: '3rem', textAlign: 'center' }}>
@@ -323,7 +322,6 @@ export default function App() {
               })}
             </div>
 
-            {/* Footer */}
             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #DDE3EC', background: '#F8FAFC' }}>
               <p style={{ fontSize: '11px', color: '#94A3B8', margin: 0, textAlign: 'center' }}>
                 Actualisé automatiquement toutes les 30 secondes

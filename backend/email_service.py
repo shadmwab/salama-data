@@ -132,3 +132,40 @@ def send_org_approved(to_email: str, org_name: str, contact_name: str, admin_pas
     </div>
     """
     return send_email(to_email, contact_name, f"Votre organisation {org_name} a été approuvée — Salama Data", html)
+
+def send_reset_password_email(to_email: str, prenom: str, nom: str, reset_url: str):
+    html = f"""
+    <div style="font-family: Poppins, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f4f6f8; padding: 2rem;">
+        <div style="background: #0D2E4E; border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
+            <h1 style="color: white; font-size: 24px; margin: 0;">SALAMA DATA</h1>
+            <p style="color: #7FB3D3; margin: 4px 0 0; font-size: 13px;">Réinitialisation du mot de passe</p>
+        </div>
+        <div style="background: white; border-radius: 12px; padding: 2rem; border: 1px solid #DDE3EC;">
+            <h2 style="color: #0D2E4E; font-size: 18px;">Bonjour {prenom} {nom},</h2>
+            <p style="color: #64748B; font-size: 14px; line-height: 1.6;">
+                Vous avez demandé la réinitialisation de votre mot de passe Salama Data.
+                Cliquez sur le bouton ci-dessous pour créer un nouveau mot de passe.
+            </p>
+            <div style="text-align: center; margin: 2rem 0;">
+                <a href="{reset_url}" style="background: #1A4B7A; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">
+                    → Réinitialiser mon mot de passe
+                </a>
+            </div>
+            <div style="background: #FEF3C7; border-radius: 8px; padding: 12px 16px; border: 1px solid #FCD34D;">
+                <p style="color: #92400E; font-size: 13px; margin: 0; font-weight: 600;">
+                    Ce lien expire dans 2 heures.
+                </p>
+                <p style="color: #92400E; font-size: 12px; margin: 4px 0 0;">
+                    Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.
+                </p>
+            </div>
+            <p style="color: #94A3B8; font-size: 12px; margin-top: 1.5rem;">
+                Si le bouton ne fonctionne pas, copiez ce lien : {reset_url}
+            </p>
+        </div>
+        <p style="color: #94A3B8; font-size: 11px; text-align: center; margin-top: 1rem;">
+            © 2026 Salama Data · Développé par UMANDE INVESTMENT LIMITED · Goma, RDC
+        </p>
+    </div>
+    """
+    return send_email(to_email, f"{prenom} {nom}", "Réinitialisation de votre mot de passe — Salama Data", html)

@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+import secrets as secrets_module
 
 load_dotenv()
 
@@ -12,6 +13,15 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    id              = Column(Integer, primary_key=True, index=True)
+    email           = Column(String, nullable=False)
+    token           = Column(String, nullable=False, unique=True)
+    used            = Column(Boolean, default=False)
+    date_creation   = Column(DateTime, default=datetime.utcnow)
+    date_expiration = Column(DateTime, nullable=False)
+    
 class User(Base):
     __tablename__ = "users"
     id                  = Column(Integer, primary_key=True, index=True)

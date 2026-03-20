@@ -156,7 +156,19 @@ export default function JoinRequest({ onBack }) {
                   cursor: loading ? 'not-allowed' : 'pointer',
                   fontFamily: "'Poppins', sans-serif"
                 }}>
-                  {loading ? '⏳ Envoi en cours...' : '✓ Envoyer la demande'}
+                  {loading ? (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="2" x2="12" y2="6"/>
+                  <line x1="12" y1="18" x2="12" y2="22"/>
+                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                  <line x1="2" y1="12" x2="6" y2="12"/>
+                  <line x1="18" y1="12" x2="22" y2="12"/>
+                </svg>
+                 Envoi en cours...
+              </>
+            ) : '✓ Envoyer la demande'}
                 </button>
               </div>
             </>
@@ -165,7 +177,7 @@ export default function JoinRequest({ onBack }) {
 
         {/* Copyright */}
         <p style={{ textAlign: 'center', color: '#94A3B8', fontSize: '11px', marginTop: '1.5rem' }}>
-          © 2026 Salama Data · Développé par Shadrack N'Sapu Mwabilwa · Goma, RDC
+          © 2026 Salama Data · Umande Investment Limited · Goma, RDC
         </p>
       </div>
     </div>

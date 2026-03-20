@@ -4,7 +4,7 @@ import { useLang } from '../LanguageContext'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
-export default function Login({ onLogin, onJoinRequest }) {
+export default function Login({ onLogin, onJoinRequest, onForgotPassword }) {
   const { lang, setLang } = useLang()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -222,6 +222,12 @@ export default function Login({ onLogin, onJoinRequest }) {
               </>
             )}
           </button>
+
+          <div style={{ textAlign: 'center', marginTop: '8px' }}>
+          <button onClick={onForgotPassword} style={{ background: 'none', border: 'none', color: '#64748B', fontSize: '12px', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", textDecoration: 'underline' }}>
+           Mot de passe oublié ?
+           </button>
+           </div>
 
           {/* Lien rejoindre */}
           <div style={{

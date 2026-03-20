@@ -16,7 +16,8 @@ from auth import (
     get_current_user, require_role, ACCESS_TOKEN_EXPIRE_MINUTES
 )
 from email_service import send_welcome_agent, send_org_request_notification, send_org_approved
-
+from datetime import datetime, timedelta
+import secrets as secrets_module
 models.init_db()
 
 app = FastAPI(title="Salama Data API", version="2.0.0")
@@ -129,6 +130,12 @@ class OrgRequestCreate(BaseModel):
     type_org: str = "ONG"
     message: Optional[str] = None
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 # ── Auth Routes ────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
@@ -1035,3 +1042,79 @@ def reset_ressources(
     ).delete()
     db.commit()
     return {"message": "Ressources remises en calcul automatique"}
+
+@app.post("/auth/forgot-password")
+def forgot_password(
+    data: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        # Ne pas révéler si l'email existe
+        return {"message": "Si cet email existe, vous recevrez un lien de réinitialisation."}
+
+    # Invalider les anciens tokens
+    db.query(models.PasswordReset).filter(
+        models.PasswordReset.email == data.email,
+        models.PasswordReset.used == False
+    ).delete()
+
+    # Créer nouveau token
+    token = secrets_module.token_urlsafe(32)
+    reset = models.PasswordReset(
+        email=data.email,
+        token=token,
+        date_expiration=datetime.utcnow() + timedelta(hours=2)
+    )
+    db.add(reset)
+    db.commit()
+
+    # Envoyer email
+    reset_url = f"{os.getenv('APP_URL', 'https://salama-data.onrender.com')}/reset-password?token={token}"
+    send_reset_password_email(
+        to_email=data.email,
+        prenom=user.prenom,
+        nom=user.nom,
+        reset_url=reset_url
+    )
+
+    return {"message": "Si cet email existe, vous recevrez un lien de réinitialisation."}
+
+@app.post("/auth/reset-password")
+def reset_password(
+    data: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    reset = db.query(models.PasswordReset).filter(
+        models.PasswordReset.token == data.token,
+        models.PasswordReset.used == False
+    ).first()
+
+    if not reset:
+        raise HTTPException(status_code=400, detail="Token invalide ou déjà utilisé")
+
+    if datetime.utcnow() > reset.date_expiration:
+        raise HTTPException(status_code=400, detail="Token expiré — demandez un nouveau lien")
+
+    user = db.query(User).filter(User.email == reset.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+
+    user.hashed_password = hash_password(data.new_password)
+    reset.used = True
+    db.commit()
+
+    return {"message": "Mot de passe réinitialisé avec succès"}
+
+@app.post("/auth/change-password")
+def change_password(
+    old_password: str,
+    new_password: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not verify_password(old_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Ancien mot de passe incorrect")
+    current_user.hashed_password = hash_password(new_password)
+    db.commit()
+    return {"message": "Mot de passe changé avec succès"}
