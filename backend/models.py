@@ -164,14 +164,14 @@ class AuditLog(Base):
 
 class Organisation(Base):
     __tablename__ = "organisations"
-    id           = Column(Integer, primary_key=True, index=True)
-    nom          = Column(String, nullable=False)
-    type_org     = Column(String, default="ONG")
-    email        = Column(String, nullable=False)
-    telephone    = Column(String, nullable=True)
-    ville        = Column(String, default="Goma")
-    pays         = Column(String, default="RDC")
-    is_active    = Column(Boolean, default=True)
+    id          = Column(Integer, primary_key=True, index=True)
+    nom         = Column(String, nullable=False)
+    type_org    = Column(String, nullable=True)
+    email       = Column(String, nullable=True)
+    telephone   = Column(String, nullable=True)
+    ville       = Column(String, nullable=True)
+    pays        = Column(String, default="RDC")
+    is_active   = Column(Boolean, default=True)
     date_creation = Column(DateTime, default=datetime.utcnow)
 
 class OrgRequest(Base):

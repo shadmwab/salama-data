@@ -391,34 +391,71 @@ def list_org_requests(db: Session = Depends(get_db), current_user: User = Depend
     return db.query(models.OrgRequest).order_by(models.OrgRequest.date_demande.desc()).all()
 
 @app.post("/org-requests/{request_id}/approve")
-def approve_org_request(request_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
-    req = db.query(models.OrgRequest).filter(models.OrgRequest.id == request_id).first()
-    if not req:
+def approve_org_request(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+):
+    org_request = db.query(models.OrgRequest).filter(
+        models.OrgRequest.id == request_id
+    ).first()
+    if not org_request:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
-    if req.status != "pending":
-        raise HTTPException(status_code=400, detail="Demande déjà traitée")
+    if org_request.status == "approved":
+        raise HTTPException(status_code=400, detail="Demande déjà approuvée")
+    
+    # 1 — Créer l'organisation
+    nouvelle_org = models.Organisation(
+        nom=org_request.org_name,
+        type_org=org_request.type_org,
+        email=org_request.email,
+        telephone=org_request.phone,
+        ville="",
+        pays="RDC",
+        is_active=True
+    )
+    db.add(nouvelle_org)
+    db.flush()  # Pour obtenir l'id avant commit
 
-    org = models.Organisation(nom=req.org_name, type_org=req.type_org, email=req.email, telephone=req.phone)
-    db.add(org)
-    db.commit()
-    db.refresh(org)
+    # 2 — Générer mot de passe
+    import secrets as sec
+    password = sec.token_urlsafe(10)
 
-    password = generate_password()
+    # 3 — Créer compte admin de l'organisation
     admin_user = User(
-        nom=req.contact_name.split()[-1] if ' ' in req.contact_name else req.contact_name,
-        prenom=req.contact_name.split()[0],
-        email=req.email,
+        nom=org_request.contact_name.split()[-1] if ' ' in org_request.contact_name else org_request.contact_name,
+        prenom=org_request.contact_name.split()[0] if ' ' in org_request.contact_name else org_request.contact_name,
+        email=org_request.email,
         hashed_password=hash_password(password),
-        role="admin", organisation_id=org.id, is_active=True
+        role="manager",
+        organisation_id=nouvelle_org.id,
+        is_active=True
     )
     db.add(admin_user)
-    req.status = "approved"
-    req.date_traitement = datetime.utcnow()
+
+    # 4 — Mettre à jour le statut de la demande
+    org_request.status = "approved"
+    org_request.date_traitement = datetime.utcnow()
     db.commit()
 
-    send_org_approved(to_email=req.email, org_name=req.org_name, contact_name=req.contact_name, admin_password=password)
-    log_action(db, "ORG_APPROVED", f"Organisation {req.org_name} approuvée", user=current_user, request=request)
-    return {"message": f"Organisation {req.org_name} approuvée et email envoyé"}
+    # 5 — Envoyer email
+    send_org_approved(
+        to_email=org_request.email,
+        org_name=org_request.org_name,
+        contact_name=org_request.contact_name,
+        admin_password=password
+    )
+
+    log_action(db, "ORG_APPROVED",
+               f"Organisation {org_request.org_name} approuvée — compte créé",
+               user=current_user, request=request)
+
+    return {
+        "message": f"Organisation {org_request.org_name} approuvée",
+        "organisation_id": nouvelle_org.id,
+        "email": org_request.email
+    }
 
 @app.post("/org-requests/{request_id}/reject")
 def reject_org_request(request_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin"))):
