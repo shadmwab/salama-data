@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 import secrets as secrets_module
+from sqlalchemy import text
 
 load_dotenv()
 
@@ -104,6 +105,7 @@ class Beneficiaire(Base):
 class PersonnelSante(Base):
     __tablename__ = "personnel_sante"
     id              = Column(Integer, primary_key=True, index=True)
+    numero_ordre    = Column(String, nullable=True)
     nom             = Column(String, nullable=False)
     prenom          = Column(String, nullable=False)
     specialite      = Column(String, nullable=False)
@@ -189,6 +191,15 @@ class OrgRequest(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE personnel_sante ADD COLUMN numero_ordre VARCHAR"))
+            conn.commit()
+            print("Migration: numero_ordre ajouté")
+        except Exception:
+            pass
+  
+    
 
 def get_db():
     db = SessionLocal()

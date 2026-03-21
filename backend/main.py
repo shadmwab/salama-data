@@ -38,6 +38,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def verify_org_access(item_org_id: int, current_user: User):
+    """Sécurité — empêche l'accès croisé entre organisations"""
+    if current_user.role == 'admin' and current_user.organisation_id == 1:
+        return True
+    if current_user.organisation_id != item_org_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Accès refusé — données d'une autre organisation"
+        )
+    return True
+
 def generate_password(length=12):
     chars = string.ascii_letters + string.digits + "!@#$"
     return ''.join(secrets.choice(chars) for _ in range(length))
@@ -1532,3 +1543,73 @@ def generer_rapport_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+@app.get("/import/historique")
+def get_historique_imports(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    org_id = current_user.organisation_id
+
+    total_benef = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id
+    ).count()
+    benef_importes = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id,
+        models.Beneficiaire.synced == True
+    ).count()
+    total_personnel = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).count()
+    logs = db.query(models.AuditLog).filter(
+        models.AuditLog.organisation_id == org_id
+    ).order_by(models.AuditLog.timestamp.desc()).limit(30).all()
+
+    return {
+        "stats": {
+            "total_beneficiaires": total_benef,
+            "beneficiaires_importes": benef_importes,
+            "beneficiaires_terrain": total_benef - benef_importes,
+            "total_personnel": total_personnel,
+        },
+        "historique": [
+            {
+                "id": l.id,
+                "action": l.action,
+                "details": l.details,
+                "user_email": l.user_email,
+                "timestamp": l.timestamp.isoformat() if l.timestamp else None
+            }
+            for l in logs
+        ]
+    }
+
+
+@app.delete("/import/tout/beneficiaires")
+def supprimer_tous_beneficiaires(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    count = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == current_user.organisation_id
+    ).count()
+    db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == current_user.organisation_id
+    ).delete()
+    db.commit()
+    return {"message": f"{count} bénéficiaires supprimés"}
+
+
+@app.delete("/import/tout/personnel")
+def supprimer_tout_personnel(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    count = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == current_user.organisation_id
+    ).count()
+    db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == current_user.organisation_id
+    ).delete()
+    db.commit()
+    return {"message": f"{count} personnels supprimés"}
