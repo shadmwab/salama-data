@@ -169,9 +169,36 @@ const resetRessources = async () => {
             </div>
           )}
           <div style={{ background: 'var(--green-light)', border: '1px solid var(--green)', borderRadius: '8px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Icon name="check" size={14} color="#1D9E75" />
-            <span style={{ fontSize: '13px', color: 'var(--green-dark)', fontWeight: '600' }}>{t('dashboard_operational')}</span>
-          </div>
+  <Icon name="check" size={14} color="#1D9E75" />
+  <span style={{ fontSize: '13px', color: 'var(--green-dark)', fontWeight: '600' }}>{t('dashboard_operational')}</span>
+</div>
+
+<button
+  onClick={() => {
+    fetch(`${API}/rapport/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `rapport_salama_${new Date().toISOString().split('T')[0]}.pdf`
+      a.click()
+    })
+  }}
+  style={{
+    padding: '8px 16px', background: '#1A4B7A',
+    color: 'white', borderRadius: '8px',
+    fontSize: '13px', fontWeight: '600',
+    display: 'flex', alignItems: 'center', gap: '6px',
+    border: 'none', cursor: 'pointer',
+    fontFamily: "'Poppins', sans-serif"
+  }}
+>
+  <Icon name="download" size={14} color="white" />
+  Rapport PDF
+</button>
         </div>
       </div>
 

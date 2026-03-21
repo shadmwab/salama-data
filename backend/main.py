@@ -1,3 +1,11 @@
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from io import BytesIO
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -1241,3 +1249,286 @@ def change_password(
     current_user.hashed_password = hash_password(new_password)
     db.commit()
     return {"message": "Mot de passe changé avec succès"}
+
+@app.get("/rapport/pdf")
+def generer_rapport_pdf(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "manager"))
+):
+    org_id = current_user.organisation_id
+    
+    # Collecte des données
+    beneficiaires = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id
+    ).all()
+    
+    zones = db.query(models.Zone).filter(
+        models.Zone.organisation_id == org_id
+    ).all()
+    
+    personnel = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).all()
+    
+    org = db.query(models.Organisation).filter(
+        models.Organisation.id == org_id
+    ).first()
+    
+    total = len(beneficiaires)
+    verifies = sum(1 for b in beneficiaires if b.verifie)
+    doublons = sum(1 for b in beneficiaires if b.doublon_detecte)
+    vulnerables = sum(1 for b in beneficiaires if b.groupe_vulnerable and b.groupe_vulnerable != 'Aucun')
+    besoin_eau = sum(1 for b in beneficiaires if b.besoin_eau)
+    besoin_alim = sum(1 for b in beneficiaires if b.besoin_alimentation)
+    besoin_abri = sum(1 for b in beneficiaires if b.besoin_abri)
+    besoin_sante = sum(1 for b in beneficiaires if b.besoin_sante)
+    besoin_educ = sum(1 for b in beneficiaires if b.besoin_education)
+    personnel_dispo = sum(1 for p in personnel if p.disponibilite)
+
+    # Création PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        rightMargin=2*cm, leftMargin=2*cm,
+        topMargin=2*cm, bottomMargin=2*cm
+    )
+
+    # Couleurs
+    BLUE_DARK  = colors.HexColor('#0D2E4E')
+    BLUE       = colors.HexColor('#1A4B7A')
+    GREEN      = colors.HexColor('#1D9E75')
+    GREEN_DARK = colors.HexColor('#085041')
+    GRAY       = colors.HexColor('#64748B')
+    LIGHT_GRAY = colors.HexColor('#F8FAFC')
+    BORDER     = colors.HexColor('#DDE3EC')
+    RED        = colors.HexColor('#A32D2D')
+    AMBER      = colors.HexColor('#92400E')
+
+    styles = getSampleStyleSheet()
+    
+    def style(name, **kwargs):
+        return ParagraphStyle(name, **kwargs)
+
+    title_style    = style('Title',    fontSize=22, textColor=colors.white, fontName='Helvetica-Bold', alignment=TA_CENTER)
+    subtitle_style = style('Subtitle', fontSize=11, textColor=colors.HexColor('#7FB3D3'), fontName='Helvetica', alignment=TA_CENTER)
+    h1_style       = style('H1',       fontSize=14, textColor=BLUE_DARK, fontName='Helvetica-Bold', spaceAfter=8, spaceBefore=16)
+    h2_style       = style('H2',       fontSize=11, textColor=BLUE, fontName='Helvetica-Bold', spaceAfter=6, spaceBefore=10)
+    body_style     = style('Body',     fontSize=9,  textColor=GRAY, fontName='Helvetica', spaceAfter=4, leading=14)
+    small_style    = style('Small',    fontSize=8,  textColor=GRAY, fontName='Helvetica')
+    footer_style   = style('Footer',   fontSize=8,  textColor=GRAY, fontName='Helvetica', alignment=TA_CENTER)
+    right_style    = style('Right',    fontSize=9,  textColor=GRAY, fontName='Helvetica', alignment=TA_RIGHT)
+
+    story = []
+    date_rapport = datetime.utcnow().strftime("%d/%m/%Y à %H:%M UTC")
+    org_nom = org.nom if org else "Organisation"
+
+    # ─── EN-TÊTE ──────────────────────────────────────────────────
+    header_data = [[
+        Paragraph("<b>SALAMA DATA</b>", style('H_title', fontSize=20, textColor=colors.white, fontName='Helvetica-Bold')),
+        Paragraph(f"<b>RAPPORT HUMANITAIRE</b><br/><font size='9'>{org_nom} · {date_rapport}</font>",
+                  style('H_sub', fontSize=13, textColor=colors.white, fontName='Helvetica-Bold', alignment=TA_RIGHT))
+    ]]
+    header_table = Table(header_data, colWidths=[9*cm, 8*cm])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), BLUE_DARK),
+        ('PADDING', (0,0), (-1,-1), 16),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ROUNDEDCORNERS', [8, 8, 8, 8]),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 0.5*cm))
+
+    # Sous-titre
+    story.append(Paragraph(
+        f"Plateforme humanitaire · Goma, Nord-Kivu, RDC · Généré le {date_rapport}",
+        style('sub', fontSize=8, textColor=GRAY, fontName='Helvetica', alignment=TA_CENTER)
+    ))
+    story.append(HRFlowable(width="100%", thickness=1, color=BORDER, spaceAfter=12))
+
+    # ─── RÉSUMÉ EXÉCUTIF ──────────────────────────────────────────
+    story.append(Paragraph("1. RÉSUMÉ EXÉCUTIF", h1_style))
+
+    kpi_data = [
+        [
+            Paragraph(f"<b><font color='#085041' size='18'>{total}</font></b><br/><font size='8' color='#64748B'>Bénéficiaires enregistrés</font>", style('kpi', alignment=TA_CENTER)),
+            Paragraph(f"<b><font color='#1A4B7A' size='18'>{len(zones)}</font></b><br/><font size='8' color='#64748B'>Zones couvertes</font>", style('kpi2', alignment=TA_CENTER)),
+            Paragraph(f"<b><font color='#92400E' size='18'>{len(personnel)}</font></b><br/><font size='8' color='#64748B'>Personnel de santé</font>", style('kpi3', alignment=TA_CENTER)),
+            Paragraph(f"<b><font color='#A32D2D' size='18'>{vulnerables}</font></b><br/><font size='8' color='#64748B'>Personnes vulnérables</font>", style('kpi4', alignment=TA_CENTER)),
+        ]
+    ]
+    kpi_table = Table(kpi_data, colWidths=[4.25*cm]*4)
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (0,0), colors.HexColor('#E1F5EE')),
+        ('BACKGROUND', (1,0), (1,0), colors.HexColor('#E6F4FB')),
+        ('BACKGROUND', (2,0), (2,0), colors.HexColor('#FEF3C7')),
+        ('BACKGROUND', (3,0), (3,0), colors.HexColor('#FCEBEB')),
+        ('BOX', (0,0), (0,0), 1, colors.HexColor('#9FE1CB')),
+        ('BOX', (1,0), (1,0), 1, colors.HexColor('#B5D4F4')),
+        ('BOX', (2,0), (2,0), 1, colors.HexColor('#FCD34D')),
+        ('BOX', (3,0), (3,0), 1, colors.HexColor('#F7C1C1')),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 14),
+        ('ROUNDEDCORNERS', [6, 6, 6, 6]),
+    ]))
+    story.append(kpi_table)
+    story.append(Spacer(1, 0.4*cm))
+
+    # Texte résumé
+    pct_verifies = round((verifies/total*100), 1) if total > 0 else 0
+    story.append(Paragraph(
+        f"Ce rapport couvre <b>{total} bénéficiaires</b> enregistrés dans le système Salama Data pour "
+        f"<b>{org_nom}</b>. Parmi eux, <b>{verifies} ({pct_verifies}%)</b> ont été vérifiés, "
+        f"<b>{vulnerables}</b> appartiennent à des groupes vulnérables et <b>{doublons}</b> doublons "
+        f"ont été détectés. <b>{len(zones)} zones</b> sont couvertes avec <b>{personnel_dispo} agents de santé</b> disponibles.",
+        body_style
+    ))
+
+    # ─── ANALYSE DES BESOINS ──────────────────────────────────────
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("2. ANALYSE DES BESOINS PRIORITAIRES", h1_style))
+
+    besoins_data = [
+        ['Secteur', 'Bénéficiaires', '% du total', 'Priorité'],
+        ['Eau & Assainissement', str(besoin_eau), f"{round(besoin_eau/total*100,1) if total>0 else 0}%", 'CRITIQUE' if besoin_eau > total*0.5 else 'MODÉRÉE'],
+        ['Alimentation', str(besoin_alim), f"{round(besoin_alim/total*100,1) if total>0 else 0}%", 'CRITIQUE' if besoin_alim > total*0.5 else 'MODÉRÉE'],
+        ['Abri d\'urgence', str(besoin_abri), f"{round(besoin_abri/total*100,1) if total>0 else 0}%", 'CRITIQUE' if besoin_abri > total*0.5 else 'MODÉRÉE'],
+        ['Soins de santé', str(besoin_sante), f"{round(besoin_sante/total*100,1) if total>0 else 0}%", 'CRITIQUE' if besoin_sante > total*0.5 else 'MODÉRÉE'],
+        ['Éducation', str(besoin_educ), f"{round(besoin_educ/total*100,1) if total>0 else 0}%", 'MODÉRÉE'],
+    ]
+    besoins_table = Table(besoins_data, colWidths=[6*cm, 3.5*cm, 3*cm, 4.5*cm])
+    besoins_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), BLUE_DARK),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 9),
+        ('FONTSIZE', (0,1), (-1,-1), 8),
+        ('ALIGN', (1,0), (-1,-1), 'CENTER'),
+        ('ALIGN', (0,0), (0,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 8),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT_GRAY]),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ('TEXTCOLOR', (3,1), (3,-1), RED),
+        ('FONTNAME', (3,1), (3,-1), 'Helvetica-Bold'),
+    ]))
+    story.append(besoins_table)
+
+    # ─── ZONES D'INTERVENTION ─────────────────────────────────────
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("3. ZONES D'INTERVENTION", h1_style))
+
+    if zones:
+        zones_data = [['Zone', 'Déplacés', 'Personnel', 'Ratio', 'Criticité']]
+        for z in zones:
+            nb_personnel_zone = db.query(models.PersonnelSante).filter(
+                models.PersonnelSante.zone == z.nom,
+                models.PersonnelSante.organisation_id == org_id
+            ).count()
+            ratio = z.nb_deplaces // max(nb_personnel_zone, 1)
+            if ratio > 1000:
+                criticite = 'CRITIQUE'
+            elif ratio > 500:
+                criticite = 'TENSION'
+            else:
+                criticite = 'STABLE'
+            zones_data.append([
+                z.nom,
+                str(z.nb_deplaces),
+                str(nb_personnel_zone),
+                str(ratio),
+                criticite
+            ])
+        zones_table = Table(zones_data, colWidths=[5*cm, 3*cm, 3*cm, 3*cm, 3*cm])
+        zones_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), BLUE),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('ALIGN', (1,0), (-1,-1), 'CENTER'),
+            ('ALIGN', (0,0), (0,-1), 'LEFT'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('PADDING', (0,0), (-1,-1), 7),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0,0), (-1,-1), 0.5, BORDER),
+            ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ]))
+        story.append(zones_table)
+    else:
+        story.append(Paragraph("Aucune zone enregistrée.", body_style))
+
+    # ─── LISTE BÉNÉFICIAIRES ──────────────────────────────────────
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("4. LISTE DES BÉNÉFICIAIRES", h1_style))
+    story.append(Paragraph(
+        f"Les {min(50, total)} premiers bénéficiaires enregistrés (sur {total} au total).",
+        body_style
+    ))
+
+    if beneficiaires:
+        benef_data = [['#', 'Nom complet', 'Âge/Sexe', 'Zone', 'Groupe', 'Besoins', 'Vérifié']]
+        for i, b in enumerate(beneficiaires[:50]):
+            besoins = []
+            if b.besoin_eau: besoins.append('Eau')
+            if b.besoin_alimentation: besoins.append('Alim')
+            if b.besoin_abri: besoins.append('Abri')
+            if b.besoin_sante: besoins.append('Santé')
+            if b.besoin_education: besoins.append('Éduc')
+            benef_data.append([
+                str(b.id),
+                f"{b.prenom} {b.nom}",
+                f"{b.age or '?'}/{b.sexe or '?'}",
+                (b.zone_origine or b.site_deplacement or '—')[:15],
+                (b.groupe_vulnerable or '—')[:15],
+                ', '.join(besoins) if besoins else '—',
+                'Oui' if b.verifie else 'Non'
+            ])
+        benef_table = Table(benef_data, colWidths=[1*cm, 4*cm, 2*cm, 3*cm, 3*cm, 3*cm, 1.5*cm])
+        benef_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), BLUE_DARK),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 7),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('ALIGN', (1,0), (1,-1), 'LEFT'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0,0), (-1,-1), 0.5, BORDER),
+            ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ]))
+        story.append(benef_table)
+    else:
+        story.append(Paragraph("Aucun bénéficiaire enregistré.", body_style))
+
+    # ─── PIED DE PAGE ─────────────────────────────────────────────
+    story.append(Spacer(1, 0.5*cm))
+    story.append(HRFlowable(width="100%", thickness=1, color=BORDER))
+    story.append(Spacer(1, 0.2*cm))
+
+    footer_data = [[
+        Paragraph(f"<b>Salama Data</b> · {org_nom}", small_style),
+        Paragraph(f"Généré le {date_rapport}", style('fc', fontSize=8, textColor=GRAY, alignment=TA_CENTER)),
+        Paragraph("<b>Umande Investment Limited</b> · Goma, RDC", style('fr', fontSize=8, textColor=GRAY, alignment=TA_RIGHT))
+    ]]
+    footer_table = Table(footer_data, colWidths=[5.67*cm, 5.67*cm, 5.67*cm])
+    footer_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (0,0), 'LEFT'),
+        ('ALIGN', (1,0), (1,0), 'CENTER'),
+        ('ALIGN', (2,0), (2,0), 'RIGHT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(footer_table)
+
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+
+    filename = f"rapport_salama_{org_nom.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
