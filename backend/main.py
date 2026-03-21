@@ -610,16 +610,127 @@ def dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_cu
         "user_role": current_user.role
     }
 
-@app.post("/agent")
-def poser_question(body: AgentQuestion, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin", "manager"))):
+@app.post("/agent/chat")
+def agent_chat(
+    request: Request,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    question = body.get("message", "")
+    langue = body.get("langue", "fr")
     org_id = current_user.organisation_id
-    total = db.query(models.Beneficiaire).filter(models.Beneficiaire.organisation_id == org_id).count()
-    zones = db.query(models.Beneficiaire.zone_origine).filter(models.Beneficiaire.organisation_id == org_id).distinct().all()
-    agents = db.query(models.Beneficiaire.agent_id).filter(models.Beneficiaire.organisation_id == org_id).distinct().count()
-    contexte = {"total_beneficiaires": total, "zones": [z[0] for z in zones if z[0]], "nb_agents": agents, "collectes_mois": 0}
-    reponse = interroger_agent(body.question, contexte)
-    log_action(db, "AGENT_QUERY", f"Question: {body.question[:100]}", user=current_user, request=request)
-    return {"reponse": reponse}
+
+    # Récupérer le contexte réel
+    org = db.query(models.Organisation).filter(
+        models.Organisation.id == org_id
+    ).first()
+    beneficiaires = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id
+    ).all()
+    zones = db.query(models.Zone).filter(
+        models.Zone.organisation_id == org_id
+    ).all()
+    personnel = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).all()
+
+    total = len(beneficiaires)
+    stats_zones = {}
+    for b in beneficiaires:
+        zone = b.zone_origine or b.site_deplacement or 'Inconnue'
+        if zone not in stats_zones:
+            stats_zones[zone] = {'total': 0, 'eau': 0, 'alim': 0, 'abri': 0, 'sante': 0, 'educ': 0, 'vulnerables': 0, 'femmes': 0, 'hommes': 0}
+        stats_zones[zone]['total'] += 1
+        if b.besoin_eau: stats_zones[zone]['eau'] += 1
+        if b.besoin_alimentation: stats_zones[zone]['alim'] += 1
+        if b.besoin_abri: stats_zones[zone]['abri'] += 1
+        if b.besoin_sante: stats_zones[zone]['sante'] += 1
+        if b.besoin_education: stats_zones[zone]['educ'] += 1
+        if b.groupe_vulnerable and b.groupe_vulnerable != 'Aucun': stats_zones[zone]['vulnerables'] += 1
+        if b.sexe == 'F': stats_zones[zone]['femmes'] += 1
+        else: stats_zones[zone]['hommes'] += 1
+
+    groupes = {}
+    for b in beneficiaires:
+        if b.groupe_vulnerable and b.groupe_vulnerable != 'Aucun':
+            groupes[b.groupe_vulnerable] = groupes.get(b.groupe_vulnerable, 0) + 1
+
+    personnel_dispo = [f"{p.prenom} {p.nom} ({p.specialite}, {p.zone or 'zone non assignée'})" for p in personnel if p.disponibilite]
+    personnel_indispo = [f"{p.prenom} {p.nom} ({p.specialite})" for p in personnel if not p.disponibilite]
+
+    zones_detail = "\n".join([
+    f"- {zone}: {stats_zones[zone]['total']} bénéficiaires, eau:{stats_zones[zone]['eau']}, alim:{stats_zones[zone]['alim']}, santé:{stats_zones[zone]['sante']}, vulnérables:{stats_zones[zone]['vulnerables']}"
+    for zone in stats_zones
+])
+    langues_config = {
+        "fr": "Réponds en français",
+        "en": "Answer in English",
+        "sw": "Jibu kwa Kiswahili",
+        "ln": "Yamba na Lingala"
+    }
+
+    system_prompt = f"""Tu es Salama Agent, l'assistant IA de la plateforme humanitaire Salama Data.
+Tu travailles pour l'organisation: {org.nom if org else 'Organisation inconnue'}
+Date: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC
+
+=== DONNÉES RÉELLES DE L'ORGANISATION ===
+
+BÉNÉFICIAIRES:
+- Total enregistrés: {total}
+- Vérifiés: {sum(1 for b in beneficiaires if b.verifie)}
+- Doublons détectés: {sum(1 for b in beneficiaires if b.doublon_detecte)}
+- Femmes: {sum(1 for b in beneficiaires if b.sexe == 'F')}
+- Hommes: {sum(1 for b in beneficiaires if b.sexe == 'M')}
+
+BESOINS PRIORITAIRES:
+- Eau & Assainissement: {sum(1 for b in beneficiaires if b.besoin_eau)} personnes
+- Alimentation: {sum(1 for b in beneficiaires if b.besoin_alimentation)} personnes
+- Abri d'urgence: {sum(1 for b in beneficiaires if b.besoin_abri)} personnes
+- Soins de santé: {sum(1 for b in beneficiaires if b.besoin_sante)} personnes
+- Education: {sum(1 for b in beneficiaires if b.besoin_education)} personnes
+
+GROUPES VULNÉRABLES:
+{chr(10).join([f"- {g}: {n} personnes" for g, n in groupes.items()]) if groupes else "- Aucun groupe vulnérable enregistré"}
+
+STATISTIQUES PAR ZONE:
+{chr(10).join([f"- {z}: {stats_zones[z]['total']} bénéficiaires, eau:{stats_zones[z]['eau']}, alim:{stats_zones[z]['alim']}, santé:{stats_zones[z]['sante']}, vulnérables:{stats_zones[z]['vulnerables']}" for z in stats_zones]) if stats_zones else "- Aucune zone enregistrée"}
+
+ZONES ENREGISTRÉES:
+{chr(10).join([f"- {z.nom}: {z.nb_deplaces} déplacés" for z in zones]) if zones else "- Aucune zone"}
+
+PERSONNEL DE SANTÉ:
+- Total: {len(personnel)}
+- Disponibles ({len(personnel_dispo)}): {', '.join(personnel_dispo[:10]) if personnel_dispo else 'Aucun'}
+- Indisponibles ({len(personnel_indispo)}): {', '.join(personnel_indispo[:5]) if personnel_indispo else 'Aucun'}
+
+=== FIN DES DONNÉES ===
+
+INSTRUCTIONS:
+1. Utilise UNIQUEMENT les données ci-dessus pour répondre
+2. Sois précis avec les chiffres réels
+3. Si une donnée n'est pas disponible, dis-le clairement
+4. Fais des recommandations basées sur les données réelles
+5. {langues_config.get(langue, langues_config['fr'])}
+6. Sois concis mais complet
+7. Tu peux faire des analyses croisées (ex: zones avec le plus de besoins vs personnel disponible)
+"""
+
+    try:
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question}
+            ],
+            max_tokens=1000,
+            temperature=0.3
+        )
+        return {"response": response.choices[0].message.content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur IA: {str(e)}")
 
 @app.get("/beneficiaires/{beneficiaire_id}")
 def get_beneficiaire(
@@ -1613,3 +1724,100 @@ def supprimer_tout_personnel(
     ).delete()
     db.commit()
     return {"message": f"{count} personnels supprimés"}
+
+@app.get("/agent/contexte")
+def get_contexte_agent(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = current_user.organisation_id
+    org = db.query(models.Organisation).filter(
+        models.Organisation.id == org_id
+    ).first()
+
+    beneficiaires = db.query(models.Beneficiaire).filter(
+        models.Beneficiaire.organisation_id == org_id
+    ).all()
+
+    zones = db.query(models.Zone).filter(
+        models.Zone.organisation_id == org_id
+    ).all()
+
+    personnel = db.query(models.PersonnelSante).filter(
+        models.PersonnelSante.organisation_id == org_id
+    ).all()
+
+    total = len(beneficiaires)
+
+    # Statistiques détaillées
+    stats_zones = {}
+    for b in beneficiaires:
+        zone = b.zone_origine or b.site_deplacement or 'Inconnue'
+        if zone not in stats_zones:
+            stats_zones[zone] = {
+                'total': 0, 'eau': 0, 'alim': 0,
+                'abri': 0, 'sante': 0, 'educ': 0,
+                'vulnerables': 0, 'femmes': 0, 'hommes': 0
+            }
+        stats_zones[zone]['total'] += 1
+        if b.besoin_eau: stats_zones[zone]['eau'] += 1
+        if b.besoin_alimentation: stats_zones[zone]['alim'] += 1
+        if b.besoin_abri: stats_zones[zone]['abri'] += 1
+        if b.besoin_sante: stats_zones[zone]['sante'] += 1
+        if b.besoin_education: stats_zones[zone]['educ'] += 1
+        if b.groupe_vulnerable and b.groupe_vulnerable != 'Aucun':
+            stats_zones[zone]['vulnerables'] += 1
+        if b.sexe == 'F': stats_zones[zone]['femmes'] += 1
+        else: stats_zones[zone]['hommes'] += 1
+
+    # Groupes vulnérables
+    groupes = {}
+    for b in beneficiaires:
+        if b.groupe_vulnerable and b.groupe_vulnerable != 'Aucun':
+            groupes[b.groupe_vulnerable] = groupes.get(b.groupe_vulnerable, 0) + 1
+
+    # Personnel disponible par spécialité
+    personnel_dispo = {}
+    for p in personnel:
+        if p.disponibilite:
+            spec = p.specialite or 'Autre'
+            if spec not in personnel_dispo:
+                personnel_dispo[spec] = []
+            personnel_dispo[spec].append({
+                'nom': f"{p.prenom} {p.nom}",
+                'zone': p.zone or 'Non assigné',
+                'telephone': p.telephone or 'N/A',
+                'numero_ordre': p.numero_ordre or 'N/A'
+            })
+
+    return {
+        "organisation": org.nom if org else "Organisation",
+        "date_rapport": datetime.utcnow().strftime("%d/%m/%Y %H:%M"),
+        "statistiques": {
+            "total_beneficiaires": total,
+            "beneficiaires_verifies": sum(1 for b in beneficiaires if b.verifie),
+            "doublons_detectes": sum(1 for b in beneficiaires if b.doublon_detecte),
+            "total_zones": len(zones),
+            "total_personnel": len(personnel),
+            "personnel_disponible": sum(1 for p in personnel if p.disponibilite),
+            "besoins": {
+                "eau": sum(1 for b in beneficiaires if b.besoin_eau),
+                "alimentation": sum(1 for b in beneficiaires if b.besoin_alimentation),
+                "abri": sum(1 for b in beneficiaires if b.besoin_abri),
+                "sante": sum(1 for b in beneficiaires if b.besoin_sante),
+                "education": sum(1 for b in beneficiaires if b.besoin_education),
+            },
+            "groupes_vulnerables": groupes,
+            "total_vulnerables": sum(groupes.values()),
+        },
+        "par_zone": stats_zones,
+        "personnel_disponible": personnel_dispo,
+        "zones": [
+            {
+                "nom": z.nom,
+                "nb_deplaces": z.nb_deplaces,
+                "description": z.description or ''
+            }
+            for z in zones
+        ]
+    }
