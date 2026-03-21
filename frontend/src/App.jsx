@@ -17,6 +17,8 @@ import { Icon } from './components/Icons'
 import { syncPending } from './offline'
 import './index.css'
 import Profil from './pages/Profil'
+import Import from './pages/Import'
+import Historique from './pages/Historique'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
@@ -175,6 +177,8 @@ export default function App() {
       case 'admin':         return <Admin token={token} user={user} />
       case 'agent':         return <Agent token={token} />
       case 'profil': return <Profil token={token} user={user} />
+      case 'import': return <Import token={token} />
+      case 'historique': return <Historique token={token} user={user} />
       default:              return <Dashboard token={token} />
     }
   }

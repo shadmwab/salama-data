@@ -12,6 +12,7 @@ const getLinks = (t, role) => {
     { id: 'affectations', icon: 'map', label: 'Affectations', roles: ['admin', 'manager'] },
     { id: 'zones', icon: 'map', label: 'Zones & Criticité', roles: ['admin', 'manager'] },
     { id: 'admin', icon: 'settings', label: 'Administration', roles: ['admin', 'manager'] },
+    { id: 'historique', icon: 'report', label: 'Historique données', roles: ['admin', 'manager'] },
   ]
   return all.filter(l => l.roles.includes(role))
 }
